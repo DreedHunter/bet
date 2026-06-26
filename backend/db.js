@@ -169,6 +169,15 @@ export function getUsage(userId = null, limit = 200) {
                      ORDER BY u.id DESC LIMIT ?`).all(limit);
 }
 
+export function getTabLogs(userId = null, limit = 100) {
+  if (userId) {
+    return db.prepare(`SELECT u.*, us.email FROM usage_log u JOIN users us ON us.id = u.user_id
+                       WHERE u.user_id = ? AND u.event = 'tabs' ORDER BY u.id DESC LIMIT ?`).all(userId, limit);
+  }
+  return db.prepare(`SELECT u.*, us.email FROM usage_log u JOIN users us ON us.id = u.user_id
+                     WHERE u.event = 'tabs' ORDER BY u.id DESC LIMIT ?`).all(limit);
+}
+
 export function getStats() {
   const totUsers = db.prepare(`SELECT COUNT(*) c FROM users`).get().c;
   const activeFastbet = db.prepare(`SELECT COUNT(*) c FROM activations WHERE product_code='fastbet' AND active=1`).get().c;

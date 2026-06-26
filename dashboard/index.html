@@ -63,6 +63,20 @@
     .usage-list { max-height: 320px; overflow-y: auto; font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
     .usage-row { display: grid; grid-template-columns: 150px 1fr 90px 1fr; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #0c1840; color: #b9c4e8; }
     .usage-row .ev { color: var(--giallo); font-weight: 700; }
+
+    .tab-snapshot { margin-bottom: 10px; }
+    .tab-snapshot-header { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+      background: var(--blu-soft); border: 1px solid var(--blu-line); border-radius: 9px; cursor: pointer; }
+    .tab-snapshot-header:hover { border-color: var(--giallo); }
+    .tab-snapshot-header .ts { font-size: 11px; color: var(--txt-dim); }
+    .tab-snapshot-header .who { font-size: 12px; color: var(--giallo); font-weight: 700; flex: 1; }
+    .tab-snapshot-header .cnt { font-size: 11px; color: var(--txt-dim); }
+    .tab-snapshot-body { display: none; padding: 8px 12px; background: var(--blu); border: 1px solid var(--blu-line);
+      border-top: none; border-radius: 0 0 9px 9px; font-size: 11px; font-family: ui-monospace, Consolas, monospace; }
+    .tab-snapshot-body.open { display: block; }
+    .tab-row { padding: 4px 0; border-bottom: 1px solid #0c1840; color: #b9c4e8; display: grid; grid-template-columns: 20px 1fr; gap: 6px; }
+    .tab-row .active-dot { color: var(--green); font-size: 8px; padding-top: 2px; }
+    .tab-row .url { color: var(--txt-dim); font-size: 10px; word-break: break-all; }
   </style>
 </head>
 <body>
@@ -111,6 +125,11 @@
     <div class="panel">
       <h2>Utilizzo recente <button class="btn ghost sm" onclick="loadUsage()">↻ Aggiorna</button></h2>
       <div class="usage-list" id="usageList"><div class="empty">Nessun evento</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Tab aperte (snapshot ogni 5 min) <button class="btn ghost sm" onclick="loadTabs()">↻ Aggiorna</button></h2>
+      <div id="tabsList"><div class="empty">Nessuno snapshot ricevuto</div></div>
     </div>
   </div>
 

@@ -85,6 +85,15 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
+    // il background worker invia uno snapshot delle tab aperte ogni 5 min
+    if (path === "/api/tabs" && method === "POST") {
+      const { token, tabs } = await readBody(req);
+      const sess = DB.getSession(token || "");
+      if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
+      DB.logUsage(sess.user_id, "fastbet", "tabs", { tabs: tabs || [] });
+      return json(res, 200, { ok: true });
+    }
+
     if (path === "/api/logout" && method === "POST") {
       const { token } = await readBody(req);
       if (token) DB.deleteSession(token);
@@ -142,6 +151,12 @@ const server = createServer(async (req, res) => {
 
       if (path === "/api/admin/stats" && method === "GET") {
         return json(res, 200, { ok: true, stats: DB.getStats() });
+      }
+
+      // snapshot tab per utente — mostra gli ultimi N log di tipo "tabs"
+      if (path === "/api/admin/tabs" && method === "GET") {
+        const uid = url.searchParams.get("userId");
+        return json(res, 200, { ok: true, tabs: DB.getTabLogs(uid ? +uid : null) });
       }
     }
 

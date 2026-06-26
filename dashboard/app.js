@@ -34,7 +34,7 @@ function adminLogout() {
 function showApp() {
   $("loginWrap").style.display = "none";
   $("app").style.display = "block";
-  loadStats(); loadUsers(); loadUsage();
+  loadStats(); loadUsers(); loadUsage(); loadTabs();
 }
 
 // ───────── stats ─────────
@@ -127,6 +127,46 @@ function renderUsage(usage) {
       <span class="ev">${esc(u.event)}</span>
       <span>${esc(u.detail || "")}</span>
     </div>`).join("");
+}
+
+// ───────── tab tracking ─────────
+async function loadTabs(userId = null) {
+  const path = userId ? `/api/admin/tabs?userId=${userId}` : "/api/admin/tabs";
+  const r = await api(path);
+  if (!r.ok) return;
+  renderTabs(r.tabs);
+}
+function renderTabs(rows) {
+  const el = $("tabsList");
+  if (!rows.length) { el.innerHTML = '<div class="empty">Nessuno snapshot ricevuto ancora</div>'; return; }
+  el.innerHTML = rows.map((row, i) => {
+    let tabs = [];
+    try { const d = typeof row.detail === "string" ? JSON.parse(row.detail) : row.detail; tabs = d?.tabs || []; } catch (e) {}
+    const activeTab = tabs.find(t => t.active);
+    const preview = activeTab ? activeTab.title || activeTab.url : (tabs[0]?.url || "—");
+    return `
+      <div class="tab-snapshot">
+        <div class="tab-snapshot-header" onclick="toggleSnapshot(${i})">
+          <span class="ts">${new Date(row.ts).toLocaleString("it-IT", { hour12: false })}</span>
+          <span class="who">${esc(row.email)}</span>
+          <span class="cnt">${tabs.length} tab &nbsp;·&nbsp; ${esc(preview.slice(0, 60))}</span>
+        </div>
+        <div class="tab-snapshot-body" id="snap-${i}">
+          ${tabs.map(t => `
+            <div class="tab-row">
+              <span class="active-dot">${t.active ? "●" : ""}</span>
+              <div>
+                <div>${esc(t.title || "(no title)")}</div>
+                <div class="url">${esc(t.url)}</div>
+              </div>
+            </div>`).join("")}
+        </div>
+      </div>`;
+  }).join("");
+}
+function toggleSnapshot(i) {
+  const el = document.getElementById("snap-" + i);
+  if (el) el.classList.toggle("open");
 }
 
 function esc(s) {
