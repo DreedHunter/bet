@@ -1,0 +1,13 @@
+{
+  "name": "fastbet-license-backend",
+  "version": "1.0.0",
+  "description": "Backend prototipo per gestione licenze e attivazione prodotti",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --experimental-sqlite server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
