@@ -23,6 +23,21 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 function Say($m, $c = "Cyan") { Write-Host $m -ForegroundColor $c }
 
+# Esegue git senza farsi ingannare da PS 5.1 (git scrive su stderr anche i messaggi
+# normali). Non lanciamo eccezioni sullo stderr: controlliamo il vero exit code.
+function RunGit {
+  param([string[]]$GitArgs)
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $out = & git @GitArgs 2>&1
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $prev
+  if ($code -ne 0) {
+    throw ("git " + ($GitArgs -join " ") + " ha fallito (exit $code): " + ($out -join " "))
+  }
+  return $out
+}
+
 # 1) git presente?
 $git = (Get-Command git -ErrorAction SilentlyContinue)
 if (-not $git) { Say "git non trovato nel PATH. Installa Git for Windows." Red; exit 1 }
@@ -38,14 +53,20 @@ if (-not (Test-Path $ChromeExe)) {
 if (Test-Path (Join-Path $RepoDir ".git")) {
   Say "Repo gia presente in $RepoDir — aggiorno..."
   Set-Location $RepoDir
-  & git fetch origin $Branch --quiet
-  & git checkout $Branch --quiet
-  & git pull origin $Branch --quiet
+  RunGit @("fetch","origin",$Branch) | Out-Null
+  RunGit @("checkout",$Branch)       | Out-Null
+  RunGit @("pull","origin",$Branch)  | Out-Null
 } else {
   Say "Clono $RepoUrl in $RepoDir ..."
   $parent = Split-Path -Parent $RepoDir
   if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
-  & git clone --branch $Branch $RepoUrl $RepoDir
+  RunGit @("clone","--branch",$Branch,$RepoUrl,$RepoDir) | Out-Null
+}
+
+# verifica che il clone/aggiornamento sia andato davvero a buon fine
+if (-not (Test-Path (Join-Path $RepoDir ".git"))) {
+  Say "ERRORE: repo non presente in $RepoDir dopo il clone. Interrompo." Red
+  exit 1
 }
 
 $extPath = Join-Path $RepoDir $ExtSubdir
@@ -62,13 +83,18 @@ $cfg = [ordered]@{
   chromeExe          = $ChromeExe
   autoRestartChrome  = $AutoRestartChrome
 }
+# config.json e updater.ps1 vivono DENTRO il repo clonato (non accanto a install.ps1,
+# che potrebbe essere stato scaricato altrove). Path assoluti = niente sorprese.
+$updaterDir = Join-Path $RepoDir "autoupdater"
+if (-not (Test-Path $updaterDir)) { New-Item -ItemType Directory -Path $updaterDir -Force | Out-Null }
 $cfgJson = $cfg | ConvertTo-Json
-Set-Content -Path (Join-Path $scriptDir "config.json") -Value $cfgJson -Encoding utf8
-Say "config.json scritto."
+Set-Content -Path (Join-Path $updaterDir "config.json") -Value $cfgJson -Encoding utf8
+Say "config.json scritto in $updaterDir."
 
 # 5) registra lo Scheduled Task (avvio al logon, sempre attivo)
 $taskName  = "GBFB-AutoUpdater"
-$updater   = Join-Path $scriptDir "updater.ps1"
+$updater   = Join-Path $updaterDir "updater.ps1"
+if (-not (Test-Path $updater)) { Say "ATTENZIONE: updater.ps1 non trovato in $updaterDir" Yellow }
 $action    = New-ScheduledTaskAction -Execute "powershell.exe" `
               -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$updater`""
 $trigger   = New-ScheduledTaskTrigger -AtLogOn
@@ -93,7 +119,7 @@ if ($LaunchNow) {
 Say ""
 Say "===== INSTALLAZIONE COMPLETATA =====" Green
 Say "Estensione (sorgente live): $extPath"
-Say "Log updater:                $(Join-Path $scriptDir 'updater.log')"
+Say "Log updater:                $(Join-Path $updaterDir 'updater.log')"
 Say ""
 Say "IMPORTANTE (prima volta): carica l'estensione in Chrome una volta manualmente:" Yellow
 Say "  1) chrome://extensions  ->  attiva 'Modalita sviluppatore'"

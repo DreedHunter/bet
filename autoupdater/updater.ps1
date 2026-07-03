@@ -28,6 +28,18 @@ function Log($msg) {
   Add-Content -Path $LogFile -Value $line -Encoding utf8
 }
 
+# git robusto: non tratta lo stderr informativo di git come errore terminante
+function RunGit {
+  param([string[]]$GitArgs)
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $out = & git @GitArgs 2>&1
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $prev
+  if ($code -ne 0) { throw ("git " + ($GitArgs -join " ") + " (exit $code): " + ($out -join " ")) }
+  return $out
+}
+
 function Restart-Chrome {
   Log "Riavvio Chrome per applicare l'aggiornamento estensione..."
   $procs = Get-Process chrome -ErrorAction SilentlyContinue
@@ -48,19 +60,19 @@ while ($true) {
     Set-Location $RepoDir
 
     # versione locale prima del pull
-    $before = (& git rev-parse HEAD).Trim()
+    $before = (RunGit @("rev-parse","HEAD")).Trim()
 
     # scarica gli aggiornamenti remoti
-    & git fetch origin $Branch --quiet
-    $remote = (& git rev-parse "origin/$Branch").Trim()
+    RunGit @("fetch","origin",$Branch) | Out-Null
+    $remote = (RunGit @("rev-parse","origin/$Branch")).Trim()
 
     if ($before -ne $remote) {
       Log "Nuovo commit rilevato: $($before.Substring(0,7)) -> $($remote.Substring(0,7))"
 
       # cosa cambia in extension/ tra locale e remoto?
-      $changed = & git diff --name-only HEAD "origin/$Branch" -- $ExtSubdir
-      & git pull origin $Branch --quiet
-      $after = (& git rev-parse HEAD).Trim()
+      $changed = RunGit @("diff","--name-only","HEAD","origin/$Branch","--",$ExtSubdir)
+      RunGit @("pull","origin",$Branch) | Out-Null
+      $after = (RunGit @("rev-parse","HEAD")).Trim()
       Log "Pull completato -> $($after.Substring(0,7))"
 
       if ($changed) {
