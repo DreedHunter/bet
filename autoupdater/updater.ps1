@@ -1,5 +1,5 @@
-# updater.ps1 — auto-updater estensione Goldbet Fast Bet (Approccio A: git pull + reload Chrome)
-# Gira in loop: controlla il repo, quando c'è un nuovo commit che tocca extension/
+# updater.ps1 - auto-updater estensione Goldbet Fast Bet (Approccio A: git pull + reload Chrome)
+# Gira in loop: controlla il repo, quando c'e un nuovo commit che tocca extension/
 # aggiorna la cartella locale e (se serve) ricarica Chrome.
 #
 # Config via config.json nella stessa cartella (creato da install.ps1).
@@ -9,7 +9,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $cfgPath = Join-Path $root "config.json"
 
 if (-not (Test-Path $cfgPath)) {
-  Write-Host "config.json mancante — esegui prima install.ps1" -ForegroundColor Red
+  Write-Host "config.json mancante - esegui prima install.ps1" -ForegroundColor Red
   exit 1
 }
 $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
