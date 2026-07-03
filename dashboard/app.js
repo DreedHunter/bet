@@ -37,7 +37,7 @@ function showApp() {
   $("loginWrap").style.display = "none";
   $("app").style.display = "block";
   loadStats(); loadUsers(); loadUsage(); loadTabs(); loadLive();
-  loadExpiring(); loadActivity(); loadDomains();
+  loadExpiring(); loadActivity(); loadDomains(); loadVersion();
   // auto-refresh della vista live + stats ogni 30s
   if (liveTimer) clearInterval(liveTimer);
   liveTimer = setInterval(() => { loadLive(); loadStats(); }, 30000);
@@ -310,6 +310,32 @@ async function loadDomains() {
       <div class="dom-track"><div class="dom-fill" style="width:${Math.round(d.minutes / max * 100)}%"></div></div>
       <span class="dom-min">~${d.minutes} min</span>
     </div>`).join("");
+}
+
+// ───────── versione estensione ─────────
+async function loadVersion() {
+  const r = await api("/api/admin/version");
+  if (!r.ok) return;
+  const v = r.version || {};
+  $("verCurrent").textContent = "Attuale pubblicata: v" + (v.version || "—") +
+    (v.updated_at ? " (" + new Date(v.updated_at).toLocaleDateString("it-IT") + ")" : "");
+  if (!$("verNum").value) $("verNum").value = "";
+  $("verUrl").value = v.download_url || "";
+  $("verLog").value = v.changelog || "";
+  $("verMand").checked = !!v.mandatory;
+}
+async function publishVersion() {
+  $("verErr").textContent = "";
+  const version = $("verNum").value.trim();
+  if (!version) { $("verErr").textContent = "Numero versione richiesto (es. 6.5)"; return; }
+  const r = await api("/api/admin/version", "POST", {
+    version,
+    changelog: $("verLog").value.trim(),
+    downloadUrl: $("verUrl").value.trim(),
+    mandatory: $("verMand").checked
+  });
+  if (r.ok) { $("verErr").style.color = "var(--green)"; $("verErr").textContent = "Pubblicata v" + version; loadVersion(); }
+  else { $("verErr").style.color = ""; $("verErr").textContent = r.error || "Errore"; }
 }
 
 // export CSV (via fetch+blob per poter passare l'header di auth)

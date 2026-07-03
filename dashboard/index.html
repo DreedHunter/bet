@@ -121,6 +121,11 @@
       border-bottom: 1px solid #0c1840; color: #b9c4e8; font-size: 12px;
       font-family: ui-monospace, Consolas, monospace; }
     .tl-row .ev { color: var(--giallo); font-weight: 700; }
+
+    /* versione */
+    .ver-grid { display: grid; grid-template-columns: 120px 1fr auto; gap: 8px; align-items: center; }
+    .ver-grid input { margin: 0; }
+    .ver-mand { font-size: 12px; color: var(--txt-dim); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -213,6 +218,27 @@
         <button class="btn ghost sm" onclick="loadDomains()">↻ Aggiorna</button>
       </h2>
       <div id="domainsList"><div class="empty">Caricamento…</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>⬆️ Versione estensione (avviso aggiornamento)
+        <button class="btn ghost sm" onclick="loadVersion()">↻ Aggiorna</button>
+      </h2>
+      <p style="font-size:12px;color:var(--txt-dim);margin-bottom:12px">
+        Pubblica la versione più recente: i clienti con una versione più vecchia riceveranno
+        un banner "aggiorna" (le estensioni unpacked non si aggiornano da sole).
+      </p>
+      <div class="ver-grid">
+        <input id="verNum" placeholder="es. 6.5">
+        <input id="verUrl" placeholder="URL download (ZIP/pagina, opzionale)">
+        <label class="ver-mand"><input type="checkbox" id="verMand" style="width:auto;margin:0"> Obbligatorio (blocca)</label>
+      </div>
+      <input id="verLog" placeholder="Changelog / note (opzionale)" style="margin-top:8px">
+      <div class="row-actions" style="margin-top:8px">
+        <button class="btn sm" onclick="publishVersion()">Pubblica versione</button>
+        <span id="verCurrent" style="font-size:12px;color:var(--txt-dim);align-self:center"></span>
+      </div>
+      <div class="err" id="verErr"></div>
     </div>
 
     <div class="panel">

@@ -79,6 +79,16 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- versione più recente pubblicata dell'estensione (per l'avviso di aggiornamento)
+  CREATE TABLE IF NOT EXISTS app_version (
+    id          INTEGER PRIMARY KEY CHECK (id = 1),
+    version     TEXT NOT NULL,
+    changelog   TEXT,
+    download_url TEXT,
+    mandatory   INTEGER NOT NULL DEFAULT 0,   -- 1 = blocca l'uso finché non aggiorna
+    updated_at  TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_usage_user_ts   ON usage_log(user_id, id DESC);
   CREATE INDEX IF NOT EXISTS idx_usage_event     ON usage_log(event);
   CREATE INDEX IF NOT EXISTS idx_sessions_user   ON sessions(user_id);
@@ -93,6 +103,11 @@ try { db.exec(`ALTER TABLE sessions ADD COLUMN last_seen_at TEXT`); } catch { /*
 // prodotto fastbet di default
 db.prepare(`INSERT OR IGNORE INTO products (code, name) VALUES (?, ?)`)
   .run("fastbet", "Goldbet Fast Bet");
+
+// versione iniziale dell'estensione (allineata al manifest corrente)
+db.prepare(`INSERT OR IGNORE INTO app_version (id, version, changelog, download_url, mandatory, updated_at)
+            VALUES (1, ?, ?, ?, 0, ?)`)
+  .run("6.4", "Versione iniziale registrata", "", new Date().toISOString());
 
 // ───────────────────────── password helpers ─────────────────────────
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
@@ -418,6 +433,30 @@ export function getStats(onlineWindowMin = 12) {
     `SELECT COUNT(DISTINCT user_id) c FROM sessions WHERE COALESCE(last_seen_at, created_at) >= ?`
   ).get(cutoff).c;
   return { totUsers, activeFastbet, totEvents, bets, online };
+}
+
+// ───────────────────────── versione estensione ─────────────────────────
+export function getAppVersion() {
+  return db.prepare(`SELECT version, changelog, download_url, mandatory, updated_at FROM app_version WHERE id = 1`).get()
+    || { version: "0.0", changelog: "", download_url: "", mandatory: 0, updated_at: null };
+}
+
+export function setAppVersion(version, changelog = "", downloadUrl = "", mandatory = false) {
+  db.prepare(`UPDATE app_version SET version=?, changelog=?, download_url=?, mandatory=?, updated_at=? WHERE id=1`)
+    .run(String(version), changelog || "", downloadUrl || "", mandatory ? 1 : 0, now());
+  return getAppVersion();
+}
+
+// confronta due versioni semver-like ("6.4" < "6.10"): >0 se a>b, <0 se a<b, 0 se uguali
+export function compareVersions(a, b) {
+  const pa = String(a).split(".").map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split(".").map(n => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d > 0 ? 1 : -1;
+  }
+  return 0;
 }
 
 export default db;

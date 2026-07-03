@@ -83,6 +83,21 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, status: "up", ts: new Date().toISOString() });
     }
 
+    // versione più recente pubblicata (l'estensione la confronta con la propria)
+    if (path === "/api/version" && method === "GET") {
+      const v = DB.getAppVersion();
+      const current = url.searchParams.get("current");
+      const outdated = current ? DB.compareVersions(v.version, current) > 0 : false;
+      return json(res, 200, {
+        ok: true,
+        latest: v.version,
+        changelog: v.changelog,
+        download_url: v.download_url,
+        mandatory: !!v.mandatory,
+        outdated
+      });
+    }
+
     // ═══════════ API PLUGIN (client) ═══════════
 
     // login del cliente dal plugin
@@ -100,14 +115,22 @@ const server = createServer(async (req, res) => {
 
     // il plugin verifica periodicamente se è ancora attivo (e ritira i comandi remoti)
     if (path === "/api/check" && method === "POST") {
-      const { token } = await readBody(req);
+      const { token, version } = await readBody(req);
       const sess = DB.getSession(token || "");
       if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
       DB.touchSession(token);
       const active = DB.isProductActive(sess.user_id, "fastbet");
       const commands = DB.popCommands(sess.user_id);
-      DB.logUsage(sess.user_id, "fastbet", "check", { active });
-      return json(res, 200, { ok: true, active, commands });
+      DB.logUsage(sess.user_id, "fastbet", "check", { active, version: version || null });
+      // info aggiornamento se il client ha mandato la sua versione
+      let update = null;
+      if (version) {
+        const v = DB.getAppVersion();
+        if (DB.compareVersions(v.version, version) > 0) {
+          update = { latest: v.version, changelog: v.changelog, download_url: v.download_url, mandatory: !!v.mandatory };
+        }
+      }
+      return json(res, 200, { ok: true, active, commands, update });
     }
 
     // il plugin invia un evento di telemetria (es. una giocata)
@@ -255,6 +278,17 @@ const server = createServer(async (req, res) => {
           "Access-Control-Allow-Origin": "*"
         });
         return res.end(csv);
+      }
+
+      // ── versione estensione ──
+      if (path === "/api/admin/version" && method === "GET") {
+        return json(res, 200, { ok: true, version: DB.getAppVersion() });
+      }
+      if (path === "/api/admin/version" && method === "POST") {
+        const { version, changelog, downloadUrl, mandatory } = await readBody(req);
+        if (!version) return json(res, 400, { ok: false, error: "version richiesta" });
+        const v = DB.setAppVersion(version, changelog || "", downloadUrl || "", !!mandatory);
+        return json(res, 200, { ok: true, version: v });
       }
     }
 

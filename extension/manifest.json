@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Goldbet Fast Bet",
+  "version": "6.4",
+  "description": "Conferma istantanea su Goldbet (mock pendingBet). GUI overlay + login con licenza + telemetria tab + retry automatico quota scaduta.",
+  "permissions": ["tabs"],
+  "host_permissions": [
+    "*://*.goldbet.it/*",
+    "https://bet-production-b260.up.railway.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.goldbet.it/*"],
+      "js": ["fastbet.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
