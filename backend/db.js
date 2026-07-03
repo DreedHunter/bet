@@ -48,12 +48,34 @@ db.exec(`
 
   -- sessioni (token di login del plugin)
   CREATE TABLE IF NOT EXISTS sessions (
-    token       TEXT PRIMARY KEY,
-    user_id     INTEGER NOT NULL,
-    created_at  TEXT NOT NULL,
+    token        TEXT PRIMARY KEY,
+    user_id      INTEGER NOT NULL,
+    created_at   TEXT NOT NULL,
+    last_seen_at TEXT,                 -- aggiornato a ogni check/tabs → serve per "chi è online"
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  -- snapshot delle tab aperte per utente (tabella dedicata, non più in usage_log)
+  CREATE TABLE IF NOT EXISTS tab_snapshots (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    tabs         TEXT NOT NULL,        -- JSON array delle tab
+    tab_count    INTEGER NOT NULL DEFAULT 0,
+    active_url   TEXT,                 -- url della tab attiva (per la vista live)
+    active_title TEXT,
+    ts           TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_usage_user_ts   ON usage_log(user_id, id DESC);
+  CREATE INDEX IF NOT EXISTS idx_usage_event     ON usage_log(event);
+  CREATE INDEX IF NOT EXISTS idx_sessions_user   ON sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_snap_user_ts    ON tab_snapshots(user_id, id DESC);
+  CREATE INDEX IF NOT EXISTS idx_snap_ts         ON tab_snapshots(ts);
 `);
+
+// migrazione soft: aggiunge last_seen_at se il DB è vecchio
+try { db.exec(`ALTER TABLE sessions ADD COLUMN last_seen_at TEXT`); } catch { /* colonna già presente */ }
 
 // prodotto fastbet di default
 db.prepare(`INSERT OR IGNORE INTO products (code, name) VALUES (?, ?)`)
@@ -143,15 +165,25 @@ export function isProductActive(userId, productCode) {
 // ───────────────────────── sessioni ─────────────────────────
 export function createSession(userId) {
   const token = randomBytes(32).toString("hex");
-  db.prepare(`INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)`)
-    .run(token, userId, now());
+  const t = now();
+  db.prepare(`INSERT INTO sessions (token, user_id, created_at, last_seen_at) VALUES (?, ?, ?, ?)`)
+    .run(token, userId, t, t);
   return token;
 }
 export function getSession(token) {
   return db.prepare(`SELECT * FROM sessions WHERE token = ?`).get(token);
 }
+export function touchSession(token) {
+  db.prepare(`UPDATE sessions SET last_seen_at = ? WHERE token = ?`).run(now(), token);
+}
 export function deleteSession(token) {
   db.prepare(`DELETE FROM sessions WHERE token = ?`).run(token);
+}
+// elimina sessioni più vecchie di N giorni (default 30)
+export function pruneSessions(days = 30) {
+  const cutoff = new Date(Date.now() - days * 864e5).toISOString();
+  const info = db.prepare(`DELETE FROM sessions WHERE COALESCE(last_seen_at, created_at) < ?`).run(cutoff);
+  return info.changes;
 }
 
 // ───────────────────────── telemetria ─────────────────────────
@@ -169,21 +201,70 @@ export function getUsage(userId = null, limit = 200) {
                      ORDER BY u.id DESC LIMIT ?`).all(limit);
 }
 
-export function getTabLogs(userId = null, limit = 100) {
-  if (userId) {
-    return db.prepare(`SELECT u.*, us.email FROM usage_log u JOIN users us ON us.id = u.user_id
-                       WHERE u.user_id = ? AND u.event = 'tabs' ORDER BY u.id DESC LIMIT ?`).all(userId, limit);
-  }
-  return db.prepare(`SELECT u.*, us.email FROM usage_log u JOIN users us ON us.id = u.user_id
-                     WHERE u.event = 'tabs' ORDER BY u.id DESC LIMIT ?`).all(limit);
+// ───────────────────────── tab snapshots ─────────────────────────
+export function saveTabSnapshot(userId, tabs = []) {
+  const arr = Array.isArray(tabs) ? tabs : [];
+  const activeTab = arr.find(t => t && t.active) || arr[0] || null;
+  db.prepare(`INSERT INTO tab_snapshots (user_id, tabs, tab_count, active_url, active_title, ts)
+              VALUES (?, ?, ?, ?, ?, ?)`)
+    .run(
+      userId,
+      JSON.stringify(arr),
+      arr.length,
+      activeTab ? (activeTab.url || "") : null,
+      activeTab ? (activeTab.title || "") : null,
+      now()
+    );
 }
 
-export function getStats() {
+// storico snapshot (formato compatibile con la dashboard: id, email, ts, detail JSON)
+export function getTabSnapshots(userId = null, limit = 100) {
+  const rows = userId
+    ? db.prepare(`SELECT s.*, us.email FROM tab_snapshots s JOIN users us ON us.id = s.user_id
+                  WHERE s.user_id = ? ORDER BY s.id DESC LIMIT ?`).all(userId, limit)
+    : db.prepare(`SELECT s.*, us.email FROM tab_snapshots s JOIN users us ON us.id = s.user_id
+                  ORDER BY s.id DESC LIMIT ?`).all(limit);
+  return rows.map(r => ({ id: r.id, email: r.email, ts: r.ts, detail: JSON.stringify({ tabs: JSON.parse(r.tabs || "[]") }) }));
+}
+
+// vista LIVE: ultimo snapshot per ogni utente + se è "online" (last_seen recente)
+export function getLiveTabs(onlineWindowMin = 12) {
+  const cutoff = new Date(Date.now() - onlineWindowMin * 60_000).toISOString();
+  return db.prepare(`
+    SELECT u.id AS user_id, u.email,
+           s.active_url, s.active_title, s.tab_count, s.ts AS last_snapshot,
+           sess.last_seen AS last_seen
+    FROM users u
+    JOIN (
+      SELECT t1.* FROM tab_snapshots t1
+      JOIN (SELECT user_id, MAX(id) mid FROM tab_snapshots GROUP BY user_id) t2
+        ON t1.id = t2.mid
+    ) s ON s.user_id = u.id
+    LEFT JOIN (
+      SELECT user_id, MAX(COALESCE(last_seen_at, created_at)) last_seen
+      FROM sessions GROUP BY user_id
+    ) sess ON sess.user_id = u.id
+    ORDER BY s.ts DESC
+  `).all().map(r => ({ ...r, online: !!(r.last_seen && r.last_seen >= cutoff) }));
+}
+
+// retention: elimina snapshot più vecchi di N giorni (default 14)
+export function pruneTabSnapshots(days = 14) {
+  const cutoff = new Date(Date.now() - days * 864e5).toISOString();
+  const info = db.prepare(`DELETE FROM tab_snapshots WHERE ts < ?`).run(cutoff);
+  return info.changes;
+}
+
+export function getStats(onlineWindowMin = 12) {
+  const cutoff = new Date(Date.now() - onlineWindowMin * 60_000).toISOString();
   const totUsers = db.prepare(`SELECT COUNT(*) c FROM users`).get().c;
   const activeFastbet = db.prepare(`SELECT COUNT(*) c FROM activations WHERE product_code='fastbet' AND active=1`).get().c;
   const totEvents = db.prepare(`SELECT COUNT(*) c FROM usage_log`).get().c;
   const bets = db.prepare(`SELECT COUNT(*) c FROM usage_log WHERE event='bet'`).get().c;
-  return { totUsers, activeFastbet, totEvents, bets };
+  const online = db.prepare(
+    `SELECT COUNT(DISTINCT user_id) c FROM sessions WHERE COALESCE(last_seen_at, created_at) >= ?`
+  ).get(cutoff).c;
+  return { totUsers, activeFastbet, totEvents, bets, online };
 }
 
 export default db;

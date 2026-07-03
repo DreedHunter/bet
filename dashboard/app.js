@@ -28,13 +28,18 @@ async function adminLogin() {
 function adminLogout() {
   adminToken = null;
   localStorage.removeItem("adminToken");
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
   $("app").style.display = "none";
   $("loginWrap").style.display = "flex";
 }
+let liveTimer = null;
 function showApp() {
   $("loginWrap").style.display = "none";
   $("app").style.display = "block";
-  loadStats(); loadUsers(); loadUsage(); loadTabs();
+  loadStats(); loadUsers(); loadUsage(); loadTabs(); loadLive();
+  // auto-refresh della vista live + stats ogni 30s
+  if (liveTimer) clearInterval(liveTimer);
+  liveTimer = setInterval(() => { loadLive(); loadStats(); }, 30000);
 }
 
 // ───────── stats ─────────
@@ -45,8 +50,42 @@ async function loadStats() {
   $("stats").innerHTML = `
     <div class="stat"><div class="v">${s.totUsers}</div><div class="l">utenti</div></div>
     <div class="stat"><div class="v green">${s.activeFastbet}</div><div class="l">fastbet attivi</div></div>
-    <div class="stat"><div class="v blue">${s.bets}</div><div class="l">giocate loggate</div></div>
-    <div class="stat"><div class="v">${s.totEvents}</div><div class="l">eventi totali</div></div>`;
+    <div class="stat"><div class="v green">${s.online ?? 0}</div><div class="l">online adesso</div></div>
+    <div class="stat"><div class="v blue">${s.bets}</div><div class="l">giocate loggate</div></div>`;
+}
+
+// ───────── vista live ─────────
+function relTime(iso) {
+  if (!iso) return "mai";
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "adesso";
+  if (m < 60) return m + " min fa";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + " h fa";
+  return Math.floor(h / 24) + " g fa";
+}
+async function loadLive() {
+  const r = await api("/api/admin/live");
+  if (!r.ok) return;
+  const el = $("liveList");
+  const rows = r.live || [];
+  if (!rows.length) { el.innerHTML = '<div class="empty">Nessun utente attivo</div>'; return; }
+  // online prima, poi per ultimo snapshot
+  rows.sort((a, b) => (b.online - a.online) || (b.last_snapshot > a.last_snapshot ? 1 : -1));
+  el.innerHTML = rows.map(u => {
+    const page = u.active_title || u.active_url || "—";
+    let host = "";
+    try { host = u.active_url ? new URL(u.active_url).hostname : ""; } catch {}
+    return `
+      <div class="live-row">
+        <span class="dot ${u.online ? "on" : ""}" title="${u.online ? "online" : "offline"}"></span>
+        <span class="who">${esc(u.email)}</span>
+        <span class="page">${esc(page)}<small>${esc(host)}</small></span>
+        <span class="cnt">${u.tab_count} tab</span>
+        <span class="seen">${esc(relTime(u.last_seen || u.last_snapshot))}</span>
+      </div>`;
+  }).join("");
 }
 
 // ───────── utenti ─────────
@@ -129,16 +168,30 @@ function renderUsage(usage) {
     </div>`).join("");
 }
 
-// ───────── tab tracking ─────────
+// ───────── tab tracking (storico) ─────────
+let tabRows = [];
 async function loadTabs(userId = null) {
   const path = userId ? `/api/admin/tabs?userId=${userId}` : "/api/admin/tabs";
   const r = await api(path);
   if (!r.ok) return;
-  renderTabs(r.tabs);
+  tabRows = r.tabs || [];
+  renderTabs();
 }
-function renderTabs(rows) {
+function clearTabFilter() {
+  $("tabSearch").value = "";
+  loadTabs();
+}
+function renderTabs() {
   const el = $("tabsList");
-  if (!rows.length) { el.innerHTML = '<div class="empty">Nessuno snapshot ricevuto ancora</div>'; return; }
+  const q = ($("tabSearch")?.value || "").toLowerCase().trim();
+  let rows = tabRows;
+  if (q) {
+    rows = tabRows.filter(row => {
+      if ((row.email || "").toLowerCase().includes(q)) return true;
+      return (row.detail || "").toLowerCase().includes(q);
+    });
+  }
+  if (!rows.length) { el.innerHTML = '<div class="empty">Nessuno snapshot' + (q ? " per questo filtro" : " ricevuto ancora") + '</div>'; return; }
   el.innerHTML = rows.map((row, i) => {
     let tabs = [];
     try { const d = typeof row.detail === "string" ? JSON.parse(row.detail) : row.detail; tabs = d?.tabs || []; } catch (e) {}

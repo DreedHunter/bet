@@ -77,6 +77,20 @@
     .tab-row { padding: 4px 0; border-bottom: 1px solid #0c1840; color: #b9c4e8; display: grid; grid-template-columns: 20px 1fr; gap: 6px; }
     .tab-row .active-dot { color: var(--green); font-size: 8px; padding-top: 2px; }
     .tab-row .url { color: var(--txt-dim); font-size: 10px; word-break: break-all; }
+
+    /* vista live */
+    .live-row { display: grid; grid-template-columns: 14px 180px 1fr 70px 130px; gap: 10px; align-items: center;
+      padding: 9px 12px; border-bottom: 1px solid #0c1840; font-size: 12px; }
+    .live-row:hover { background: var(--blu-soft); }
+    .live-row .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--txt-dim); }
+    .live-row .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .live-row .who { color: var(--giallo); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .live-row .page { color: #cdd6f4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .live-row .page small { display: block; color: var(--txt-dim); font-size: 10px; }
+    .live-row .cnt { color: var(--txt-dim); font-size: 11px; text-align: center; }
+    .live-row .seen { color: var(--txt-dim); font-size: 10px; text-align: right; }
+    .tabs-filter { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tabs-filter input { margin: 0; flex: 1; }
   </style>
 </head>
 <body>
@@ -101,6 +115,13 @@
     </div>
 
     <div class="stats" id="stats"></div>
+
+    <div class="panel">
+      <h2>🟢 Chi è online adesso
+        <button class="btn ghost sm" onclick="loadLive()">↻ Aggiorna</button>
+      </h2>
+      <div id="liveList"><div class="empty">Nessun utente attivo</div></div>
+    </div>
 
     <div class="panel">
       <h2>Nuovo utente</h2>
@@ -128,7 +149,10 @@
     </div>
 
     <div class="panel">
-      <h2>Tab aperte (snapshot ogni 5 min) <button class="btn ghost sm" onclick="loadTabs()">↻ Aggiorna</button></h2>
+      <h2>Storico tab (snapshot ogni 5 min) <button class="btn ghost sm" onclick="clearTabFilter()">↻ Tutti</button></h2>
+      <div class="tabs-filter">
+        <input id="tabSearch" placeholder="Filtra per email o url…" oninput="renderTabs()">
+      </div>
       <div id="tabsList"><div class="empty">Nessuno snapshot ricevuto</div></div>
     </div>
   </div>

@@ -43,6 +43,31 @@ function isAdmin(req) {
   return auth === "Bearer " + ADMIN_TOKEN;
 }
 
+function clientIp(req) {
+  const xff = req.headers["x-forwarded-for"];
+  if (xff) return String(xff).split(",")[0].trim();
+  return req.socket?.remoteAddress || "unknown";
+}
+
+// ───────── rate limiter in-memory (per IP) per gli endpoint sensibili ─────────
+const rateBuckets = new Map();
+function rateLimit(key, max = 10, windowMs = 60_000) {
+  const nowT = Date.now();
+  const b = rateBuckets.get(key);
+  if (!b || nowT > b.reset) {
+    rateBuckets.set(key, { count: 1, reset: nowT + windowMs });
+    return true;
+  }
+  if (b.count >= max) return false;
+  b.count++;
+  return true;
+}
+// pulizia periodica dei bucket scaduti
+setInterval(() => {
+  const nowT = Date.now();
+  for (const [k, v] of rateBuckets) if (nowT > v.reset) rateBuckets.delete(k);
+}, 60_000).unref?.();
+
 // ───────────────────────── server ─────────────────────────
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -53,10 +78,17 @@ const server = createServer(async (req, res) => {
   if (method === "OPTIONS") return json(res, 204, {});
 
   try {
+    // healthcheck per Railway / uptime monitor
+    if (path === "/api/health" && method === "GET") {
+      return json(res, 200, { ok: true, status: "up", ts: new Date().toISOString() });
+    }
+
     // ═══════════ API PLUGIN (client) ═══════════
 
     // login del cliente dal plugin
     if (path === "/api/login" && method === "POST") {
+      if (!rateLimit("login:" + clientIp(req), 10, 60_000))
+        return json(res, 429, { ok: false, error: "Troppi tentativi, riprova tra un minuto" });
       const { email, password } = await readBody(req);
       const user = DB.checkLogin(email || "", password || "");
       if (!user) return json(res, 401, { ok: false, error: "Credenziali non valide" });
@@ -71,6 +103,7 @@ const server = createServer(async (req, res) => {
       const { token } = await readBody(req);
       const sess = DB.getSession(token || "");
       if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
+      DB.touchSession(token);
       const active = DB.isProductActive(sess.user_id, "fastbet");
       DB.logUsage(sess.user_id, "fastbet", "check", { active });
       return json(res, 200, { ok: true, active });
@@ -90,7 +123,8 @@ const server = createServer(async (req, res) => {
       const { token, tabs } = await readBody(req);
       const sess = DB.getSession(token || "");
       if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
-      DB.logUsage(sess.user_id, "fastbet", "tabs", { tabs: tabs || [] });
+      DB.touchSession(token);
+      DB.saveTabSnapshot(sess.user_id, tabs || []);
       return json(res, 200, { ok: true });
     }
 
@@ -153,10 +187,15 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { ok: true, stats: DB.getStats() });
       }
 
-      // snapshot tab per utente — mostra gli ultimi N log di tipo "tabs"
+      // snapshot tab per utente (storico)
       if (path === "/api/admin/tabs" && method === "GET") {
         const uid = url.searchParams.get("userId");
-        return json(res, 200, { ok: true, tabs: DB.getTabLogs(uid ? +uid : null) });
+        return json(res, 200, { ok: true, tabs: DB.getTabSnapshots(uid ? +uid : null) });
+      }
+
+      // vista LIVE: ultima tab attiva per utente + stato online
+      if (path === "/api/admin/live" && method === "GET") {
+        return json(res, 200, { ok: true, live: DB.getLiveTabs() });
       }
     }
 
@@ -181,6 +220,19 @@ const server = createServer(async (req, res) => {
   }
 });
 
+// ───────── retention: pulizia periodica di snapshot e sessioni vecchie ─────────
+const SNAPSHOT_RETENTION_DAYS = +(process.env.SNAPSHOT_RETENTION_DAYS || 14);
+const SESSION_RETENTION_DAYS  = +(process.env.SESSION_RETENTION_DAYS  || 30);
+function runRetention() {
+  try {
+    const s = DB.pruneTabSnapshots(SNAPSHOT_RETENTION_DAYS);
+    const q = DB.pruneSessions(SESSION_RETENTION_DAYS);
+    if (s || q) console.log(`  🧹 Retention: ${s} snapshot e ${q} sessioni rimossi`);
+  } catch (e) { console.error("Retention error:", e); }
+}
+runRetention();                                    // all'avvio
+setInterval(runRetention, 6 * 60 * 60 * 1000).unref?.();  // ogni 6 ore
+
 server.listen(PORT, "0.0.0.0", () => {
   const base = process.env.RAILWAY_PUBLIC_DOMAIN
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
@@ -188,5 +240,6 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`\n  🔑 License backend attivo`);
   console.log(`  ├─ Dashboard admin: ${base}/`);
   console.log(`  ├─ API plugin:      ${base}/api/`);
+  console.log(`  ├─ Health:          ${base}/api/health`);
   console.log(`  └─ DB: ${process.env.DB_PATH || "locale"}\n`);
 });

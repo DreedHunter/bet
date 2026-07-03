@@ -45,10 +45,37 @@ Password admin iniziale: **`admin123`** (cambiala in `server.js`, variabile `ADM
 
 | Endpoint | Metodo | Cosa fa |
 |----------|--------|---------|
-| `/api/login` | POST `{email,password}` | Login cliente → ritorna `{token, active}` |
-| `/api/check` | POST `{token}` | Verifica se ancora attivo → `{active}` |
+| `/api/health` | GET | Healthcheck (usato da Railway) |
+| `/api/login` | POST `{email,password}` | Login cliente → ritorna `{token, active}` (rate-limit 10/min per IP) |
+| `/api/check` | POST `{token}` | Verifica se ancora attivo → `{active}` + aggiorna "ultimo visto" |
+| `/api/tabs` | POST `{token,tabs}` | Snapshot tab aperte (ogni 5 min dal background worker) |
 | `/api/event` | POST `{token,event,detail}` | Invia telemetria (es. una giocata) |
 | `/api/logout` | POST `{token}` | Chiude la sessione |
+
+### API admin (dashboard)
+
+| Endpoint | Cosa fa |
+|----------|---------|
+| `/api/admin/live` | **Chi è online adesso**: ultima tab attiva + stato online per utente |
+| `/api/admin/tabs` | Storico snapshot tab (filtrabile per `?userId=`) |
+| `/api/admin/stats` | Statistiche + n° utenti online |
+
+## Persistenza su Railway (IMPORTANTE)
+
+Il DB SQLite ora vive in `/data/licenses.db` (variabile `DB_PATH` nel Dockerfile).
+Perché **sopravviva ai deploy** devi creare un **Volume** su Railway montato su `/data`:
+
+1. Apri il progetto su Railway → tab **Settings** del servizio → sezione **Volumes**
+2. **+ New Volume** → Mount path: `/data` → Salva
+3. Redeploy. Da ora utenti, licenze e snapshot restano anche dopo ogni push.
+
+> ⚠️ Senza il volume, ogni deploy azzera il database (utenti e licenze inclusi).
+
+## Retention automatica
+
+- Snapshot tab più vecchi di **14 giorni** vengono eliminati (`SNAPSHOT_RETENTION_DAYS`)
+- Sessioni inattive da **30 giorni** vengono eliminate (`SESSION_RETENTION_DAYS`)
+- La pulizia gira all'avvio e ogni 6 ore.
 
 Il plugin: fa `login`, salva il `token`, e funziona solo se `active:true`. Ogni tanto
 richiama `check`. Su ogni giocata può mandare `event` per la telemetria.

@@ -9,6 +9,8 @@ COPY dashboard/ ./dashboard/
 RUN mkdir -p /data
 
 ENV PORT=4000
+# il DB vive sul volume persistente montato in /data (sopravvive ai deploy)
+ENV DB_PATH=/data/licenses.db
 
 EXPOSE 4000
 
