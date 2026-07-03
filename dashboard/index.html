@@ -91,6 +91,36 @@
     .live-row .seen { color: var(--txt-dim); font-size: 10px; text-align: right; }
     .tabs-filter { display: flex; gap: 8px; margin-bottom: 12px; }
     .tabs-filter input { margin: 0; flex: 1; }
+
+    /* scadenze */
+    .exp-row { display: grid; grid-template-columns: 1fr 110px 70px 50px; gap: 10px; align-items: center;
+      padding: 8px 12px; border-bottom: 1px solid #0c1840; font-size: 12px; }
+    .exp-row:hover { background: var(--blu-soft); }
+    .exp-row .who { color: var(--giallo); font-weight: 700; }
+    .badge.warn { background: rgba(232,93,93,.18); color: var(--red); }
+
+    /* grafico DAU */
+    .chart-label { font-size: 11px; color: var(--txt-dim); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+    .dau-chart { display: flex; align-items: flex-end; gap: 3px; height: 120px; overflow-x: auto; padding-bottom: 4px; }
+    .dau-chart .bar { flex: 1; min-width: 16px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+    .dau-chart .bar-fill { width: 70%; background: var(--giallo); border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; }
+    .dau-chart .bar-lbl { font-size: 8px; color: var(--txt-dim); margin-top: 3px; transform: rotate(-45deg); white-space: nowrap; }
+
+    /* heatmap oraria */
+    .hour-heat { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; }
+    .hour-heat .cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 8px; color: var(--blu); font-weight: 700; border-radius: 3px; }
+
+    /* domini */
+    .dom-row { display: grid; grid-template-columns: 160px 1fr 70px; gap: 10px; align-items: center; padding: 6px 0; font-size: 12px; }
+    .dom-host { color: #cdd6f4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dom-track { background: #16264f; border-radius: 5px; height: 12px; overflow: hidden; }
+    .dom-fill { height: 100%; background: var(--giallo); border-radius: 5px; }
+    .dom-min { color: var(--txt-dim); font-size: 11px; text-align: right; }
+    .tl-row { display: grid; grid-template-columns: 150px 90px 1fr; gap: 8px; padding: 6px 10px;
+      border-bottom: 1px solid #0c1840; color: #b9c4e8; font-size: 12px;
+      font-family: ui-monospace, Consolas, monospace; }
+    .tl-row .ev { color: var(--giallo); font-weight: 700; }
   </style>
 </head>
 <body>
@@ -124,6 +154,13 @@
     </div>
 
     <div class="panel">
+      <h2>⏳ Licenze in scadenza (30 giorni)
+        <button class="btn ghost sm" onclick="loadExpiring()">↻ Aggiorna</button>
+      </h2>
+      <div id="expiringList"><div class="empty">Caricamento…</div></div>
+    </div>
+
+    <div class="panel">
       <h2>Nuovo utente</h2>
       <div class="new-user">
         <input id="nuEmail" placeholder="email@cliente.it">
@@ -154,6 +191,36 @@
         <input id="tabSearch" placeholder="Filtra per email o url…" oninput="renderTabs()">
       </div>
       <div id="tabsList"><div class="empty">Nessuno snapshot ricevuto</div></div>
+    </div>
+
+    <div class="panel" id="timelinePanel" style="display:none">
+      <h2 id="timelineTitle">Timeline utente</h2>
+      <div class="usage-list" id="timelineList"></div>
+    </div>
+
+    <div class="panel">
+      <h2>📈 Attività (ultimi 30 giorni)
+        <button class="btn ghost sm" onclick="loadActivity()">↻ Aggiorna</button>
+      </h2>
+      <div class="chart-label">Utenti attivi per giorno</div>
+      <div class="dau-chart" id="dauChart"><div class="empty">Caricamento…</div></div>
+      <div class="chart-label" style="margin-top:16px">Eventi per ora del giorno (UTC)</div>
+      <div class="hour-heat" id="hourChart"></div>
+    </div>
+
+    <div class="panel">
+      <h2>🌐 Tempo per dominio (7 giorni)
+        <button class="btn ghost sm" onclick="loadDomains()">↻ Aggiorna</button>
+      </h2>
+      <div id="domainsList"><div class="empty">Caricamento…</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>⬇️ Export dati</h2>
+      <div class="row-actions">
+        <button class="btn sm" onclick="exportCsv('users')">Scarica utenti (CSV)</button>
+        <button class="btn ghost sm" onclick="exportCsv('events')">Scarica eventi (CSV)</button>
+      </div>
     </div>
   </div>
 

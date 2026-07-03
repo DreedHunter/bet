@@ -67,11 +67,24 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- coda comandi remoti: l'admin accoda, il plugin li ritira al check
+  CREATE TABLE IF NOT EXISTS commands (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    type         TEXT NOT NULL,        -- es. "logout", "message", "config"
+    payload      TEXT,                 -- JSON opzionale
+    status       TEXT NOT NULL DEFAULT 'pending',  -- pending | delivered
+    created_at   TEXT NOT NULL,
+    delivered_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_usage_user_ts   ON usage_log(user_id, id DESC);
   CREATE INDEX IF NOT EXISTS idx_usage_event     ON usage_log(event);
   CREATE INDEX IF NOT EXISTS idx_sessions_user   ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_snap_user_ts    ON tab_snapshots(user_id, id DESC);
   CREATE INDEX IF NOT EXISTS idx_snap_ts         ON tab_snapshots(ts);
+  CREATE INDEX IF NOT EXISTS idx_cmd_user_status ON commands(user_id, status);
 `);
 
 // migrazione soft: aggiunge last_seen_at se il DB è vecchio
@@ -253,6 +266,146 @@ export function pruneTabSnapshots(days = 14) {
   const cutoff = new Date(Date.now() - days * 864e5).toISOString();
   const info = db.prepare(`DELETE FROM tab_snapshots WHERE ts < ?`).run(cutoff);
   return info.changes;
+}
+
+// ───────────────────────── comandi remoti ─────────────────────────
+export function queueCommand(userId, type, payload = null) {
+  const info = db.prepare(
+    `INSERT INTO commands (user_id, type, payload, status, created_at) VALUES (?, ?, ?, 'pending', ?)`
+  ).run(userId, type, payload ? JSON.stringify(payload) : null, now());
+  return info.lastInsertRowid;
+}
+
+// ritira i comandi pendenti di un utente e li marca come consegnati
+export function popCommands(userId) {
+  const rows = db.prepare(
+    `SELECT id, type, payload FROM commands WHERE user_id = ? AND status = 'pending' ORDER BY id ASC`
+  ).all(userId);
+  if (rows.length) {
+    const ids = rows.map(r => r.id);
+    const t = now();
+    const ph = ids.map(() => "?").join(",");
+    db.prepare(`UPDATE commands SET status='delivered', delivered_at=? WHERE id IN (${ph})`).run(t, ...ids);
+  }
+  return rows.map(r => ({ id: r.id, type: r.type, payload: r.payload ? JSON.parse(r.payload) : null }));
+}
+
+export function getRecentCommands(userId = null, limit = 50) {
+  const rows = userId
+    ? db.prepare(`SELECT c.*, u.email FROM commands c JOIN users u ON u.id=c.user_id
+                  WHERE c.user_id=? ORDER BY c.id DESC LIMIT ?`).all(userId, limit)
+    : db.prepare(`SELECT c.*, u.email FROM commands c JOIN users u ON u.id=c.user_id
+                  ORDER BY c.id DESC LIMIT ?`).all(limit);
+  return rows;
+}
+
+// invalida tutte le sessioni di un utente (kill remoto immediato)
+export function deleteUserSessions(userId) {
+  const info = db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(userId);
+  return info.changes;
+}
+
+// ───────────────────────── analitiche ─────────────────────────
+function hostOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
+}
+
+// tempo stimato per dominio: ogni snapshot ≈ intervallo (5 min) sulla tab attiva
+export function getDomainStats(userId = null, days = 7, intervalMin = 5) {
+  const cutoff = new Date(Date.now() - days * 864e5).toISOString();
+  const rows = userId
+    ? db.prepare(`SELECT active_url FROM tab_snapshots WHERE user_id=? AND ts>=? AND active_url IS NOT NULL`).all(userId, cutoff)
+    : db.prepare(`SELECT active_url FROM tab_snapshots WHERE ts>=? AND active_url IS NOT NULL`).all(cutoff);
+  const map = new Map();
+  for (const r of rows) {
+    const h = hostOf(r.active_url);
+    if (!h) continue;
+    map.set(h, (map.get(h) || 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([host, snaps]) => ({ host, snapshots: snaps, minutes: snaps * intervalMin }))
+    .sort((a, b) => b.minutes - a.minutes);
+}
+
+// timeline unificata di un utente: eventi + snapshot, in ordine cronologico
+export function getUserTimeline(userId, limit = 100) {
+  const events = db.prepare(
+    `SELECT ts, event AS kind, detail FROM usage_log WHERE user_id=? ORDER BY id DESC LIMIT ?`
+  ).all(userId, limit).map(e => ({ ts: e.ts, kind: e.kind, detail: e.detail }));
+  const snaps = db.prepare(
+    `SELECT ts, active_url, active_title, tab_count FROM tab_snapshots WHERE user_id=? ORDER BY id DESC LIMIT ?`
+  ).all(userId, limit).map(s => ({
+    ts: s.ts, kind: "tabs",
+    detail: JSON.stringify({ url: s.active_url, title: s.active_title, count: s.tab_count })
+  }));
+  return [...events, ...snaps].sort((a, b) => (a.ts < b.ts ? 1 : -1)).slice(0, limit);
+}
+
+// attività giornaliera (utenti distinti attivi per giorno)
+export function getDailyActivity(days = 30) {
+  const cutoff = new Date(Date.now() - days * 864e5).toISOString();
+  return db.prepare(`
+    SELECT substr(ts,1,10) AS day,
+           COUNT(DISTINCT user_id) AS users,
+           COUNT(*) AS events
+    FROM usage_log WHERE ts >= ?
+    GROUP BY day ORDER BY day ASC
+  `).all(cutoff);
+}
+
+// heatmap oraria (eventi per ora del giorno, UTC)
+export function getHourlyActivity(days = 30) {
+  const cutoff = new Date(Date.now() - days * 864e5).toISOString();
+  const rows = db.prepare(`
+    SELECT CAST(substr(ts,12,2) AS INTEGER) AS hour, COUNT(*) AS events
+    FROM usage_log WHERE ts >= ? GROUP BY hour
+  `).all(cutoff);
+  const out = Array.from({ length: 24 }, (_, h) => ({ hour: h, events: 0 }));
+  for (const r of rows) if (r.hour >= 0 && r.hour < 24) out[r.hour].events = r.events;
+  return out;
+}
+
+// licenze in scadenza entro N giorni (o già scadute)
+export function getExpiringLicenses(days = 14) {
+  const limit = new Date(Date.now() + days * 864e5).toISOString();
+  const nowIso = now();
+  return db.prepare(`
+    SELECT u.id AS user_id, u.email, a.expires_at, a.active
+    FROM activations a JOIN users u ON u.id = a.user_id
+    WHERE a.product_code='fastbet' AND a.expires_at IS NOT NULL AND a.expires_at <= ?
+    ORDER BY a.expires_at ASC
+  `).all(limit).map(r => ({
+    ...r,
+    active: !!r.active,
+    expired: r.expires_at < nowIso,
+    days_left: Math.ceil((new Date(r.expires_at) - new Date(nowIso)) / 864e5)
+  }));
+}
+
+// export CSV
+function toCsv(rows, cols) {
+  const esc = v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const head = cols.join(",");
+  const body = rows.map(r => cols.map(c => esc(r[c])).join(",")).join("\n");
+  return head + "\n" + body;
+}
+export function exportUsersCsv() {
+  const rows = db.prepare(`
+    SELECT u.id, u.email, u.note, u.created_at,
+           COALESCE(a.active,0) AS fastbet_active, a.expires_at
+    FROM users u
+    LEFT JOIN activations a ON a.user_id=u.id AND a.product_code='fastbet'
+    ORDER BY u.id
+  `).all();
+  return toCsv(rows, ["id", "email", "note", "created_at", "fastbet_active", "expires_at"]);
+}
+export function exportEventsCsv(limit = 5000) {
+  const rows = db.prepare(`
+    SELECT u.id, us.email, u.event, u.detail, u.ts
+    FROM usage_log u JOIN users us ON us.id=u.user_id
+    ORDER BY u.id DESC LIMIT ?
+  `).all(limit);
+  return toCsv(rows, ["id", "email", "event", "detail", "ts"]);
 }
 
 export function getStats(onlineWindowMin = 12) {

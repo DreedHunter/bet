@@ -98,15 +98,16 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, token, email: user.email, active });
     }
 
-    // il plugin verifica periodicamente se è ancora attivo
+    // il plugin verifica periodicamente se è ancora attivo (e ritira i comandi remoti)
     if (path === "/api/check" && method === "POST") {
       const { token } = await readBody(req);
       const sess = DB.getSession(token || "");
       if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
       DB.touchSession(token);
       const active = DB.isProductActive(sess.user_id, "fastbet");
+      const commands = DB.popCommands(sess.user_id);
       DB.logUsage(sess.user_id, "fastbet", "check", { active });
-      return json(res, 200, { ok: true, active });
+      return json(res, 200, { ok: true, active, commands });
     }
 
     // il plugin invia un evento di telemetria (es. una giocata)
@@ -196,6 +197,64 @@ const server = createServer(async (req, res) => {
       // vista LIVE: ultima tab attiva per utente + stato online
       if (path === "/api/admin/live" && method === "GET") {
         return json(res, 200, { ok: true, live: DB.getLiveTabs() });
+      }
+
+      // ── controllo remoto ──
+      // accoda un comando generico per un utente
+      if (path === "/api/admin/command" && method === "POST") {
+        const { userId, type, payload } = await readBody(req);
+        if (!userId || !type) return json(res, 400, { ok: false, error: "userId e type richiesti" });
+        const id = DB.queueCommand(userId, type, payload || null);
+        return json(res, 200, { ok: true, id });
+      }
+
+      // kill/logout remoto immediato: invalida le sessioni + accoda logout
+      if (path === "/api/admin/kill" && method === "POST") {
+        const { userId } = await readBody(req);
+        if (!userId) return json(res, 400, { ok: false, error: "userId richiesto" });
+        DB.queueCommand(userId, "logout", null);
+        const killed = DB.deleteUserSessions(userId);
+        return json(res, 200, { ok: true, killed });
+      }
+
+      if (path === "/api/admin/commands" && method === "GET") {
+        const uid = url.searchParams.get("userId");
+        return json(res, 200, { ok: true, commands: DB.getRecentCommands(uid ? +uid : null) });
+      }
+
+      // ── analitiche ──
+      if (path === "/api/admin/analytics/domains" && method === "GET") {
+        const uid = url.searchParams.get("userId");
+        const days = +(url.searchParams.get("days") || 7);
+        return json(res, 200, { ok: true, domains: DB.getDomainStats(uid ? +uid : null, days) });
+      }
+
+      if (path === "/api/admin/analytics/activity" && method === "GET") {
+        const days = +(url.searchParams.get("days") || 30);
+        return json(res, 200, { ok: true, daily: DB.getDailyActivity(days), hourly: DB.getHourlyActivity(days) });
+      }
+
+      if (path === "/api/admin/timeline" && method === "GET") {
+        const uid = url.searchParams.get("userId");
+        if (!uid) return json(res, 400, { ok: false, error: "userId richiesto" });
+        return json(res, 200, { ok: true, timeline: DB.getUserTimeline(+uid) });
+      }
+
+      if (path === "/api/admin/expiring" && method === "GET") {
+        const days = +(url.searchParams.get("days") || 14);
+        return json(res, 200, { ok: true, expiring: DB.getExpiringLicenses(days) });
+      }
+
+      // export CSV
+      if (path === "/api/admin/export" && method === "GET") {
+        const type = url.searchParams.get("type") || "users";
+        const csv = type === "events" ? DB.exportEventsCsv() : DB.exportUsersCsv();
+        res.writeHead(200, {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${type}.csv"`,
+          "Access-Control-Allow-Origin": "*"
+        });
+        return res.end(csv);
       }
     }
 

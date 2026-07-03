@@ -37,6 +37,7 @@ function showApp() {
   $("loginWrap").style.display = "none";
   $("app").style.display = "block";
   loadStats(); loadUsers(); loadUsage(); loadTabs(); loadLive();
+  loadExpiring(); loadActivity(); loadDomains();
   // auto-refresh della vista live + stats ogni 30s
   if (liveTimer) clearInterval(liveTimer);
   liveTimer = setInterval(() => { loadLive(); loadStats(); }, 30000);
@@ -123,6 +124,9 @@ async function loadUsers() {
             : `<button class="btn sm" onclick="activate(${u.id},true)">Attiva</button>`}
           <button class="btn ghost sm" onclick="changePass(${u.id})">Password</button>
           <button class="btn ghost sm" onclick="viewUsage(${u.id},'${esc(u.email)}')">Log</button>
+          <button class="btn ghost sm" onclick="viewTimeline(${u.id},'${esc(u.email)}')">Timeline</button>
+          <button class="btn ghost sm" onclick="sendMessage(${u.id},'${esc(u.email)}')">Msg</button>
+          <button class="btn danger sm" onclick="killUser(${u.id},'${esc(u.email)}')">Disconnetti</button>
           <button class="btn danger sm" onclick="delUser(${u.id},'${esc(u.email)}')">Elimina</button>
         </div>
       </td>
@@ -220,6 +224,106 @@ function renderTabs() {
 function toggleSnapshot(i) {
   const el = document.getElementById("snap-" + i);
   if (el) el.classList.toggle("open");
+}
+
+// ───────── controllo remoto ─────────
+async function killUser(userId, email) {
+  if (!confirm("Disconnettere subito " + email + "? La sua sessione verrà invalidata.")) return;
+  const r = await api("/api/admin/kill", "POST", { userId });
+  if (r.ok) { alert("Disconnesso (" + (r.killed || 0) + " sessioni chiuse)"); loadLive(); loadStats(); }
+  else alert(r.error || "Errore");
+}
+async function sendMessage(userId, email) {
+  const text = prompt("Messaggio da mostrare a " + email + ":");
+  if (!text) return;
+  const r = await api("/api/admin/command", "POST", { userId, type: "message", payload: { text } });
+  alert(r.ok ? "Messaggio accodato — arriverà al prossimo check (entro ~1 min)" : (r.error || "Errore"));
+}
+
+// ───────── timeline utente ─────────
+async function viewTimeline(userId, email) {
+  const r = await api(`/api/admin/timeline?userId=${userId}`);
+  if (!r.ok) return;
+  const rows = r.timeline || [];
+  const dom = () => rows.map(e => `
+    <div class="tl-row">
+      <span>${new Date(e.ts).toLocaleString("it-IT", { hour12: false })}</span>
+      <span class="ev">${esc(e.kind)}</span>
+      <span>${esc(e.detail || "")}</span>
+    </div>`).join("");
+  $("timelineTitle").textContent = "Timeline di " + email;
+  $("timelineList").innerHTML = rows.length ? dom() : '<div class="empty">Nessun evento</div>';
+  $("timelinePanel").style.display = "block";
+  $("timelinePanel").scrollIntoView({ behavior: "smooth" });
+}
+
+// ───────── analitiche ─────────
+async function loadExpiring() {
+  const r = await api("/api/admin/expiring?days=30");
+  if (!r.ok) return;
+  const rows = r.expiring || [];
+  const el = $("expiringList");
+  if (!rows.length) { el.innerHTML = '<div class="empty">Nessuna licenza con scadenza nei prossimi 30 giorni</div>'; return; }
+  el.innerHTML = rows.map(u => {
+    const cls = u.expired ? "off" : (u.days_left <= 3 ? "warn" : "on");
+    const label = u.expired ? "SCADUTA" : (u.days_left + "g");
+    return `<div class="exp-row">
+      <span class="who">${esc(u.email)}</span>
+      <span>${new Date(u.expires_at).toLocaleDateString("it-IT")}</span>
+      <span class="badge ${cls}">${label}</span>
+      ${!u.active ? '<span class="badge off">OFF</span>' : ''}
+    </div>`;
+  }).join("");
+}
+
+async function loadActivity() {
+  const r = await api("/api/admin/analytics/activity?days=30");
+  if (!r.ok) return;
+  // DAU
+  const daily = r.daily || [];
+  const maxU = Math.max(1, ...daily.map(d => d.users));
+  $("dauChart").innerHTML = daily.length ? daily.map(d => `
+    <div class="bar" title="${d.day}: ${d.users} utenti, ${d.events} eventi">
+      <div class="bar-fill" style="height:${Math.round(d.users / maxU * 100)}%"></div>
+      <div class="bar-lbl">${d.day.slice(5)}</div>
+    </div>`).join("") : '<div class="empty">Nessun dato</div>';
+  // heatmap oraria
+  const hourly = r.hourly || [];
+  const maxH = Math.max(1, ...hourly.map(h => h.events));
+  $("hourChart").innerHTML = hourly.map(h => {
+    const intensity = h.events / maxH;
+    const bg = intensity === 0 ? "#16264f" : `rgba(255,204,0,${0.15 + intensity * 0.85})`;
+    return `<div class="cell" style="background:${bg}" title="${h.hour}:00 — ${h.events} eventi">${h.hour}</div>`;
+  }).join("");
+}
+
+async function loadDomains() {
+  const r = await api("/api/admin/analytics/domains?days=7");
+  if (!r.ok) return;
+  const rows = (r.domains || []).slice(0, 12);
+  const el = $("domainsList");
+  if (!rows.length) { el.innerHTML = '<div class="empty">Nessun dato di navigazione</div>'; return; }
+  const max = Math.max(1, ...rows.map(d => d.minutes));
+  el.innerHTML = rows.map(d => `
+    <div class="dom-row">
+      <span class="dom-host">${esc(d.host)}</span>
+      <div class="dom-track"><div class="dom-fill" style="width:${Math.round(d.minutes / max * 100)}%"></div></div>
+      <span class="dom-min">~${d.minutes} min</span>
+    </div>`).join("");
+}
+
+// export CSV (via fetch+blob per poter passare l'header di auth)
+async function exportCsv(type) {
+  const res = await fetch("/api/admin/export?type=" + type, {
+    headers: { "Authorization": "Bearer " + adminToken }
+  });
+  if (!res.ok) { alert("Errore export"); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = type + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function esc(s) {
