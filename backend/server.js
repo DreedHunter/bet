@@ -49,6 +49,22 @@ function clientIp(req) {
   return req.socket?.remoteAddress || "unknown";
 }
 
+// Il vincolo account Goldbet vale solo dalla v6.5 in su. Le versioni precedenti
+// devono funzionare come prima: solo licenza attiva, nessun controllo sull'account.
+//
+// Come riconosciamo un client >=6.5:
+//  - manda "version" >= 6.5, OPPURE
+//  - manda il campo "gbUser" nel body (concetto introdotto solo dalla 6.5: i
+//    client vecchi non lo inviano affatto). Serve perché il login della 6.5-6.8
+//    manda gbUser ma non ancora la version.
+// I client <6.5 non inviano né version né gbUser → esenti.
+const GB_ENFORCE_FROM = "6.5";
+function gbEnforced(body) {
+  const version = body && body.version;
+  if (version) return DB.compareVersions(version, GB_ENFORCE_FROM) >= 0;
+  return body && Object.prototype.hasOwnProperty.call(body, "gbUser");
+}
+
 // ───────── rate limiter in-memory (per IP) per gli endpoint sensibili ─────────
 const rateBuckets = new Map();
 function rateLimit(key, max = 10, windowMs = 60_000) {
@@ -105,7 +121,8 @@ const server = createServer(async (req, res) => {
     if (path === "/api/login" && method === "POST") {
       if (!rateLimit("login:" + clientIp(req), 10, 60_000))
         return json(res, 429, { ok: false, error: "Troppi tentativi, riprova tra un minuto" });
-      const { email, password, gbUser } = await readBody(req);
+      const body = await readBody(req);
+      const { email, password, gbUser, version } = body;
       const user = DB.checkLogin(email || "", password || "");
       if (!user) {
         // se l'email esiste, registra il tentativo fallito (password sbagliata)
@@ -115,10 +132,13 @@ const server = createServer(async (req, res) => {
         return json(res, 401, { ok: false, error: "Credenziali non valide" });
       }
       const licenseActive = DB.isProductActive(user.id, "fastbet");
-      const gbAllowed = DB.isGoldbetAccountAllowed(user.id, gbUser);
+      const enforce = gbEnforced(body);
+      // client <6.5: vincolo non applicato → gb_allowed = true (comportamento legacy)
+      const gbAllowed = enforce ? DB.isGoldbetAccountAllowed(user.id, gbUser) : true;
       const active = licenseActive && gbAllowed;
       const token = DB.createSession(user.id);
-      DB.logUsage(user.id, "fastbet", "login", { active, gbUser: gbUser || null, gbAllowed });
+      DB.logUsage(user.id, "fastbet", "login",
+        { active, gbUser: gbUser || null, gbAllowed, version: version || null, gbEnforced: enforce });
       return json(res, 200, {
         ok: true, token, email: user.email,
         active, license_active: licenseActive, gb_allowed: gbAllowed
@@ -127,15 +147,19 @@ const server = createServer(async (req, res) => {
 
     // il plugin verifica periodicamente se è ancora attivo (e ritira i comandi remoti)
     if (path === "/api/check" && method === "POST") {
-      const { token, version, gbUser } = await readBody(req);
+      const body = await readBody(req);
+      const { token, version, gbUser } = body;
       const sess = DB.getSession(token || "");
       if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
       DB.touchSession(token);
       const licenseActive = DB.isProductActive(sess.user_id, "fastbet");
-      const gbAllowed = DB.isGoldbetAccountAllowed(sess.user_id, gbUser);
+      const enforce = gbEnforced(body);
+      // client <6.5: vincolo non applicato → gb_allowed = true (comportamento legacy)
+      const gbAllowed = enforce ? DB.isGoldbetAccountAllowed(sess.user_id, gbUser) : true;
       const active = licenseActive && gbAllowed;
       const commands = DB.popCommands(sess.user_id);
-      DB.logUsage(sess.user_id, "fastbet", "check", { active, gbUser: gbUser || null, gbAllowed, version: version || null });
+      DB.logUsage(sess.user_id, "fastbet", "check",
+        { active, gbUser: gbUser || null, gbAllowed, version: version || null, gbEnforced: enforce });
       // info aggiornamento se il client ha mandato la sua versione
       let update = null;
       if (version) {

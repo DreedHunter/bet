@@ -117,7 +117,7 @@ db.prepare(`INSERT OR IGNORE INTO products (code, name) VALUES (?, ?)`)
 // versione iniziale dell'estensione (allineata al manifest corrente)
 db.prepare(`INSERT OR IGNORE INTO app_version (id, version, changelog, download_url, mandatory, updated_at)
             VALUES (1, ?, ?, ?, 0, ?)`)
-  .run("6.8", "Versione iniziale registrata", "", new Date().toISOString());
+  .run("6.9", "Versione iniziale registrata", "", new Date().toISOString());
 
 // ───────────────────────── password helpers ─────────────────────────
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {

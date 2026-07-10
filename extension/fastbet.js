@@ -15,10 +15,11 @@
   //              selezione (letti dal payload insertBet).
   // Novità v6.8: fallback nome partita dallo slug URL + sport/torneo quando il
   //              payload non contiene i nomi (evita il "?" nel log).
+  // Novità v6.9: manda la versione anche al login (per il gating legacy lato server).
 
   // ───────────────────────── licenza ─────────────────────────
   const API_BASE   = "https://bet-production-b260.up.railway.app";
-  const APP_VERSION = "6.8";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
+  const APP_VERSION = "6.9";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
   const LS_TOKEN   = "gbfb_token";
   const LS_EMAIL   = "gbfb_email";
   let licToken     = null;
@@ -56,7 +57,7 @@
   async function apiLogin(email, password) {
     const r = await fetch(API_BASE + "/api/login", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, gbUser })
+      body: JSON.stringify({ email, password, gbUser, version: APP_VERSION })
     });
     return r.json();
   }
@@ -808,7 +809,7 @@
       <div class="wrap" id="wrap">
         <div class="head" id="head">
           <div class="logo">⚡</div>
-          <div class="title">GOLDBET FAST BET<small>v6.8 · LICENSED</small></div>
+          <div class="title">GOLDBET FAST BET<small>v6.9 · LICENSED</small></div>
           <div class="smk-wrap">
             <div class="smk-dot" id="smkDot"></div>
             <div class="smk-label" id="smkLabel"></div>

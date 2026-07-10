@@ -207,8 +207,14 @@ function fmtEvent(event, detailRaw) {
   const gbTxt = d.gbUser ? `account GB "${d.gbUser}"` : null;
   const quote = Array.isArray(d.quote) && d.quote.length ? d.quote.join(" × ") : null;
 
+  // legacy = client <6.5, non soggetto al vincolo account Goldbet
+  const legacy = d.gbEnforced === false;
+  const vTxt = d.version ? "v" + d.version : (legacy ? "versione <6.5" : null);
+
   switch (event) {
     case "login":
+      if (d.active && legacy)
+        return { cls: "ok", badge: "LOGIN OK (legacy)", text: "licenza attiva · " + (vTxt || "client vecchio") + " · senza vincolo account" };
       if (d.active) return { cls: "ok", badge: "LOGIN OK", text: (gbTxt || "") };
       if (d.gbAllowed === false && d.gbUser)
         return { cls: "bad", badge: "ACCESSO NEGATO", text: `account Goldbet "${d.gbUser}" NON autorizzato per questa licenza` };
@@ -220,13 +226,14 @@ function fmtEvent(event, detailRaw) {
       return { cls: "bad", badge: "PASSWORD ERRATA", text: "tentativo di accesso respinto" + (gbTxt ? " · " + gbTxt : "") };
 
     case "check": {
-      const v = d.version ? "v" + d.version : null;
-      const extra = [gbTxt, v].filter(Boolean).join(" · ");
+      const extra = [gbTxt, vTxt].filter(Boolean).join(" · ");
+      if (d.active && legacy)
+        return { cls: "dim", badge: "check (legacy)", text: "attivo senza vincolo · " + (vTxt || "client vecchio") };
       if (d.active) return { cls: "dim", badge: "check", text: "attivo" + (extra ? " · " + extra : "") };
       if (d.gbUser && d.gbAllowed === false)
-        return { cls: "bad", badge: "check BLOCCATO", text: `account Goldbet "${d.gbUser}" non autorizzato` + (v ? " · " + v : "") };
+        return { cls: "bad", badge: "check BLOCCATO", text: `account Goldbet "${d.gbUser}" non autorizzato` + (vTxt ? " · " + vTxt : "") };
       if (d.gbAllowed === false)
-        return { cls: "bad", badge: "check BLOCCATO", text: "nessun account Goldbet rilevato" + (v ? " · " + v : "") };
+        return { cls: "bad", badge: "check BLOCCATO", text: "nessun account Goldbet rilevato" + (vTxt ? " · " + vTxt : "") };
       return { cls: "warn", badge: "check OFF", text: "licenza non attiva" + (extra ? " · " + extra : "") };
     }
 
