@@ -35,6 +35,16 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- account Goldbet autorizzati per una licenza (username normalizzati lowercase).
+  -- Il plugin funziona SOLO se l'utente loggato su Goldbet è in questa lista.
+  CREATE TABLE IF NOT EXISTS goldbet_accounts (
+    user_id      INTEGER NOT NULL,
+    username     TEXT NOT NULL,
+    created_at   TEXT NOT NULL,
+    PRIMARY KEY (user_id, username),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   -- log degli utilizzi (telemetria d'uso del plugin)
   CREATE TABLE IF NOT EXISTS usage_log (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,7 +117,7 @@ db.prepare(`INSERT OR IGNORE INTO products (code, name) VALUES (?, ?)`)
 // versione iniziale dell'estensione (allineata al manifest corrente)
 db.prepare(`INSERT OR IGNORE INTO app_version (id, version, changelog, download_url, mandatory, updated_at)
             VALUES (1, ?, ?, ?, 0, ?)`)
-  .run("6.4", "Versione iniziale registrata", "", new Date().toISOString());
+  .run("6.5", "Versione iniziale registrata", "", new Date().toISOString());
 
 // ───────────────────────── password helpers ─────────────────────────
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
@@ -151,7 +161,7 @@ export function listUsers() {
   // aggiunge lo stato fastbet di ciascuno
   return users.map(u => {
     const act = getActivation(u.id, "fastbet");
-    return { ...u, fastbet_active: act ? !!act.active : false };
+    return { ...u, fastbet_active: act ? !!act.active : false, gb_accounts: getGoldbetAccounts(u.id) };
   });
 }
 
@@ -188,6 +198,35 @@ export function isProductActive(userId, productCode) {
   if (!a || !a.active) return false;
   if (a.expires_at && new Date(a.expires_at) < new Date()) return false;
   return true;
+}
+
+// ───────────────────────── account Goldbet ─────────────────────────
+const normGb = (u) => String(u || "").trim().toLowerCase();
+
+export function getGoldbetAccounts(userId) {
+  return db.prepare(`SELECT username FROM goldbet_accounts WHERE user_id = ? ORDER BY username`)
+    .all(userId).map(r => r.username);
+}
+
+// sostituisce l'intera lista di account autorizzati per una licenza
+export function setGoldbetAccounts(userId, usernames) {
+  const list = [...new Set((Array.isArray(usernames) ? usernames : []).map(normGb).filter(Boolean))];
+  db.exec("BEGIN");
+  try {
+    db.prepare(`DELETE FROM goldbet_accounts WHERE user_id = ?`).run(userId);
+    const ins = db.prepare(`INSERT INTO goldbet_accounts (user_id, username, created_at) VALUES (?, ?, ?)`);
+    for (const u of list) ins.run(userId, u, now());
+    db.exec("COMMIT");
+  } catch (e) { db.exec("ROLLBACK"); throw e; }
+  return getGoldbetAccounts(userId);
+}
+
+// true solo se lo username Goldbet (case-insensitive) è nella lista della licenza.
+// Lista vuota o username mancante → false: senza legame il plugin non si apre.
+export function isGoldbetAccountAllowed(userId, gbUser) {
+  const u = normGb(gbUser);
+  if (!u) return false;
+  return !!db.prepare(`SELECT 1 FROM goldbet_accounts WHERE user_id = ? AND username = ?`).get(userId, u);
 }
 
 // ───────────────────────── sessioni ─────────────────────────
@@ -407,12 +446,13 @@ function toCsv(rows, cols) {
 export function exportUsersCsv() {
   const rows = db.prepare(`
     SELECT u.id, u.email, u.note, u.created_at,
-           COALESCE(a.active,0) AS fastbet_active, a.expires_at
+           COALESCE(a.active,0) AS fastbet_active, a.expires_at,
+           (SELECT GROUP_CONCAT(username, ' ') FROM goldbet_accounts g WHERE g.user_id = u.id) AS gb_accounts
     FROM users u
     LEFT JOIN activations a ON a.user_id=u.id AND a.product_code='fastbet'
     ORDER BY u.id
   `).all();
-  return toCsv(rows, ["id", "email", "note", "created_at", "fastbet_active", "expires_at"]);
+  return toCsv(rows, ["id", "email", "note", "created_at", "fastbet_active", "expires_at", "gb_accounts"]);
 }
 export function exportEventsCsv(limit = 5000) {
   const rows = db.prepare(`

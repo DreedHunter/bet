@@ -90,15 +90,21 @@ async function loadLive() {
 }
 
 // ───────── utenti ─────────
+let usersCache = {};   // id → utente (per l'editor degli account Goldbet)
+
 async function createUser() {
   const email = $("nuEmail").value.trim();
   const password = $("nuPass").value;
   const note = $("nuNote").value.trim();
+  const gbAccounts = $("nuGb").value.split(",").map(s => s.trim()).filter(Boolean);
   $("nuErr").textContent = "";
   if (!email || !password) { $("nuErr").textContent = "Email e password richieste"; return; }
   const r = await api("/api/admin/users", "POST", { email, password, note });
   if (r.ok) {
-    $("nuEmail").value = ""; $("nuPass").value = ""; $("nuNote").value = "";
+    if (gbAccounts.length) {
+      await api("/api/admin/goldbet-accounts", "POST", { userId: r.user.id, accounts: gbAccounts });
+    }
+    $("nuEmail").value = ""; $("nuPass").value = ""; $("nuNote").value = ""; $("nuGb").value = "";
     loadUsers(); loadStats();
   } else {
     $("nuErr").textContent = r.error || "Errore";
@@ -109,11 +115,16 @@ async function loadUsers() {
   const r = await api("/api/admin/users");
   if (!r.ok) return;
   const users = r.users;
+  usersCache = {};
+  users.forEach(u => { usersCache[u.id] = u; });
   const body = $("usersBody");
   $("usersEmpty").style.display = users.length ? "none" : "block";
-  body.innerHTML = users.map(u => `
+  body.innerHTML = users.map(u => {
+    const gb = u.gb_accounts || [];
+    return `
     <tr>
       <td class="email">${esc(u.email)}</td>
+      <td class="gb-list">${gb.length ? gb.map(esc).join(", ") : '<span class="badge warn">NESSUNO — bloccato</span>'}</td>
       <td>${esc(u.note || "—")}</td>
       <td>${new Date(u.created_at).toLocaleDateString("it-IT")}</td>
       <td><span class="badge ${u.fastbet_active ? "on" : "off"}">${u.fastbet_active ? "ATTIVO" : "OFF"}</span></td>
@@ -122,6 +133,7 @@ async function loadUsers() {
           ${u.fastbet_active
             ? `<button class="btn danger sm" onclick="activate(${u.id},false)">Disattiva</button>`
             : `<button class="btn sm" onclick="activate(${u.id},true)">Attiva</button>`}
+          <button class="btn ghost sm" onclick="editGbAccounts(${u.id})">Account GB</button>
           <button class="btn ghost sm" onclick="changePass(${u.id})">Password</button>
           <button class="btn ghost sm" onclick="viewUsage(${u.id},'${esc(u.email)}')">Log</button>
           <button class="btn ghost sm" onclick="viewTimeline(${u.id},'${esc(u.email)}')">Timeline</button>
@@ -130,7 +142,25 @@ async function loadUsers() {
           <button class="btn danger sm" onclick="delUser(${u.id},'${esc(u.email)}')">Elimina</button>
         </div>
       </td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
+}
+
+// modifica la lista di account Goldbet legati a una licenza
+async function editGbAccounts(userId) {
+  const u = usersCache[userId];
+  if (!u) return;
+  const current = (u.gb_accounts || []).join(", ");
+  const input = prompt(
+    "Account Goldbet autorizzati per " + u.email +
+    "\n(separati da virgola — lista vuota = plugin bloccato):",
+    current
+  );
+  if (input === null) return;
+  const accounts = input.split(",").map(s => s.trim()).filter(Boolean);
+  const r = await api("/api/admin/goldbet-accounts", "POST", { userId, accounts });
+  if (r.ok) loadUsers();
+  else alert(r.error || "Errore");
 }
 
 async function activate(userId, active) {

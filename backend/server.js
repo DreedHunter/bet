@@ -100,28 +100,36 @@ const server = createServer(async (req, res) => {
 
     // ═══════════ API PLUGIN (client) ═══════════
 
-    // login del cliente dal plugin
+    // login del cliente dal plugin — gbUser = username Goldbet letto dalla pagina.
+    // "active" è true SOLO se la licenza è attiva E l'account Goldbet è autorizzato.
     if (path === "/api/login" && method === "POST") {
       if (!rateLimit("login:" + clientIp(req), 10, 60_000))
         return json(res, 429, { ok: false, error: "Troppi tentativi, riprova tra un minuto" });
-      const { email, password } = await readBody(req);
+      const { email, password, gbUser } = await readBody(req);
       const user = DB.checkLogin(email || "", password || "");
       if (!user) return json(res, 401, { ok: false, error: "Credenziali non valide" });
-      const active = DB.isProductActive(user.id, "fastbet");
+      const licenseActive = DB.isProductActive(user.id, "fastbet");
+      const gbAllowed = DB.isGoldbetAccountAllowed(user.id, gbUser);
+      const active = licenseActive && gbAllowed;
       const token = DB.createSession(user.id);
-      DB.logUsage(user.id, "fastbet", "login", { active });
-      return json(res, 200, { ok: true, token, email: user.email, active });
+      DB.logUsage(user.id, "fastbet", "login", { active, gbUser: gbUser || null, gbAllowed });
+      return json(res, 200, {
+        ok: true, token, email: user.email,
+        active, license_active: licenseActive, gb_allowed: gbAllowed
+      });
     }
 
     // il plugin verifica periodicamente se è ancora attivo (e ritira i comandi remoti)
     if (path === "/api/check" && method === "POST") {
-      const { token, version } = await readBody(req);
+      const { token, version, gbUser } = await readBody(req);
       const sess = DB.getSession(token || "");
       if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
       DB.touchSession(token);
-      const active = DB.isProductActive(sess.user_id, "fastbet");
+      const licenseActive = DB.isProductActive(sess.user_id, "fastbet");
+      const gbAllowed = DB.isGoldbetAccountAllowed(sess.user_id, gbUser);
+      const active = licenseActive && gbAllowed;
       const commands = DB.popCommands(sess.user_id);
-      DB.logUsage(sess.user_id, "fastbet", "check", { active, version: version || null });
+      DB.logUsage(sess.user_id, "fastbet", "check", { active, gbUser: gbUser || null, version: version || null });
       // info aggiornamento se il client ha mandato la sua versione
       let update = null;
       if (version) {
@@ -130,7 +138,9 @@ const server = createServer(async (req, res) => {
           update = { latest: v.version, changelog: v.changelog, download_url: v.download_url, mandatory: !!v.mandatory };
         }
       }
-      return json(res, 200, { ok: true, active, commands, update });
+      return json(res, 200, {
+        ok: true, active, license_active: licenseActive, gb_allowed: gbAllowed, commands, update
+      });
     }
 
     // il plugin invia un evento di telemetria (es. una giocata)
@@ -180,6 +190,21 @@ const server = createServer(async (req, res) => {
         if (DB.getUserByEmail(email)) return json(res, 409, { ok: false, error: "Email già esistente" });
         const u = DB.createUser(email, password, note || "");
         return json(res, 200, { ok: true, user: { id: u.id, email: u.email } });
+      }
+
+      // ── account Goldbet legati a una licenza ──
+      if (path === "/api/admin/goldbet-accounts" && method === "GET") {
+        const uid = url.searchParams.get("userId");
+        if (!uid) return json(res, 400, { ok: false, error: "userId richiesto" });
+        return json(res, 200, { ok: true, accounts: DB.getGoldbetAccounts(+uid) });
+      }
+
+      // sostituisce la lista completa: { userId, accounts: ["pippo", "pluto"] }
+      if (path === "/api/admin/goldbet-accounts" && method === "POST") {
+        const { userId, accounts } = await readBody(req);
+        if (!userId) return json(res, 400, { ok: false, error: "userId richiesto" });
+        const list = DB.setGoldbetAccounts(userId, accounts || []);
+        return json(res, 200, { ok: true, accounts: list });
       }
 
       // attiva/disattiva fastbet per un utente

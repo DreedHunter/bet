@@ -34,20 +34,23 @@ Password admin iniziale: **`admin123`** (cambiala in `server.js`, variabile `ADM
 ## Come si usa (flusso)
 
 1. **Accedi** alla dashboard con la password admin
-2. **Crea un utente**: email + password + nota → diventa un cliente
+2. **Crea un utente**: email + password + account Goldbet + nota → diventa un cliente
 3. L'utente parte **disattivato**. Clicca **Attiva** per abilitargli Fast Bet
-4. Dai al cliente le sue **credenziali** (email + password)
-5. Il cliente le inserisce nel plugin → il plugin chiede al backend se è attivo
-6. Puoi **Disattivare** in qualsiasi momento → il plugin si blocca al successivo check
-7. **Log**: vedi gli eventi di ogni cliente (login, check, giocate)
+4. **Lega gli account Goldbet** (pulsante "Account GB"): il plugin si apre SOLO se
+   l'utente loggato su Goldbet è in questa lista. Lista vuota = plugin bloccato.
+5. Dai al cliente le sue **credenziali** (email + password)
+6. Il cliente le inserisce nel plugin → il plugin legge lo username Goldbet dalla
+   pagina e chiede al backend se è attivo **e** autorizzato per quell'account
+7. Puoi **Disattivare** in qualsiasi momento → il plugin si blocca al successivo check
+8. **Log**: vedi gli eventi di ogni cliente (login, check, giocate) con l'account GB usato
 
 ## API (per collegare il plugin)
 
 | Endpoint | Metodo | Cosa fa |
 |----------|--------|---------|
 | `/api/health` | GET | Healthcheck (usato da Railway) |
-| `/api/login` | POST `{email,password}` | Login cliente → ritorna `{token, active}` (rate-limit 10/min per IP) |
-| `/api/check` | POST `{token}` | Verifica se ancora attivo → `{active}` + aggiorna "ultimo visto" |
+| `/api/login` | POST `{email,password,gbUser}` | Login cliente → `{token, active, gb_allowed, license_active}`. `active` è true solo se licenza attiva **e** `gbUser` è tra gli account Goldbet legati (rate-limit 10/min per IP) |
+| `/api/check` | POST `{token,version,gbUser}` | Verifica se ancora attivo/autorizzato → `{active, gb_allowed}` + aggiorna "ultimo visto" |
 | `/api/tabs` | POST `{token,tabs}` | Snapshot tab aperte (ogni 5 min dal background worker) |
 | `/api/event` | POST `{token,event,detail}` | Invia telemetria (es. una giocata) |
 | `/api/logout` | POST `{token}` | Chiude la sessione |
@@ -59,6 +62,7 @@ Password admin iniziale: **`admin123`** (cambiala in `server.js`, variabile `ADM
 | `/api/admin/live` | **Chi è online adesso**: ultima tab attiva + stato online per utente |
 | `/api/admin/tabs` | Storico snapshot tab (filtrabile per `?userId=`) |
 | `/api/admin/stats` | Statistiche + n° utenti online |
+| `/api/admin/goldbet-accounts` | GET `?userId=` lista account Goldbet legati · POST `{userId, accounts:[…]}` sostituisce la lista (normalizzati lowercase) |
 
 ## Persistenza su Railway (IMPORTANTE)
 

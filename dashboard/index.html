@@ -46,7 +46,8 @@
     .panel h2 { font-size: 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
     .panel h2 .btn { margin: 0; }
 
-    .new-user { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: start; margin-bottom: 4px; }
+    .new-user { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr auto; gap: 8px; align-items: start; margin-bottom: 4px; }
+    .gb-list { font-size: 12px; color: #cdd6f4; }
     .new-user input { margin: 0; }
 
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -170,16 +171,20 @@
       <div class="new-user">
         <input id="nuEmail" placeholder="email@cliente.it">
         <input id="nuPass" placeholder="password">
+        <input id="nuGb" placeholder="account goldbet (virgola)">
         <input id="nuNote" placeholder="nota (opzionale)">
         <button class="btn sm" onclick="createUser()">+ Crea</button>
       </div>
+      <p style="font-size:11px;color:var(--txt-dim);margin-top:6px">
+        ⚠️ Il plugin si apre solo sugli account Goldbet legati alla licenza: senza account il cliente resta bloccato.
+      </p>
       <div class="err" id="nuErr"></div>
     </div>
 
     <div class="panel">
       <h2>Utenti <button class="btn ghost sm" onclick="loadUsers()">↻ Aggiorna</button></h2>
       <table>
-        <thead><tr><th>Email</th><th>Nota</th><th>Creato</th><th>Fast Bet</th><th>Azioni</th></tr></thead>
+        <thead><tr><th>Email</th><th>Account Goldbet</th><th>Nota</th><th>Creato</th><th>Fast Bet</th><th>Azioni</th></tr></thead>
         <tbody id="usersBody"></tbody>
       </table>
       <div class="empty" id="usersEmpty" style="display:none">Nessun utente. Creane uno sopra.</div>

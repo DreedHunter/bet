@@ -1,16 +1,18 @@
 (function () {
   "use strict";
 
-  // Goldbet Fast Bet v6.4 — MAIN world, GUI a overlay (Shadow DOM)
+  // Goldbet Fast Bet v6.5 — MAIN world, GUI a overlay (Shadow DOM)
   // Intercetta insertBet/pendingBet e mocka la conferma pendingBet.
   // Gate di licenza: funziona solo se l'utente è loggato e attivo sul backend.
   // Novità v6.3: telemetria tab ogni 5 min via background service worker.
   // Novità v6.4: retry automatico su error 41 (quota scaduta) — recupera la
   //              quota fresca da getDetailsEventLive e ripiazza la scommessa.
+  // Novità v6.5: vincolo account Goldbet — il plugin si apre SOLO se lo username
+  //              loggato su Goldbet è nella lista autorizzata della licenza.
 
   // ───────────────────────── licenza ─────────────────────────
   const API_BASE   = "https://bet-production-b260.up.railway.app";
-  const APP_VERSION = "6.4";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
+  const APP_VERSION = "6.5";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
   const LS_TOKEN   = "gbfb_token";
   const LS_EMAIL   = "gbfb_email";
   let licToken     = null;
@@ -20,6 +22,23 @@
     licToken = localStorage.getItem(LS_TOKEN);
     licEmail = localStorage.getItem(LS_EMAIL);
   } catch (e) {}
+
+  // ───────────────── account Goldbet (username dal DOM) ─────────────────
+  // L'header Goldbet mostra il nome utente in <div class="utente">…<div>NOME</div></div>.
+  // Se l'elemento non c'è, l'utente non ha fatto il login su Goldbet.
+  let gbUser = null;
+  function readGbUser() {
+    try {
+      const box = document.querySelector(".utente");
+      if (!box) return null;
+      for (const d of box.querySelectorAll(":scope > div")) {
+        if (d.querySelector("a, i, button, input")) continue;
+        const t = (d.textContent || "").trim();
+        if (t) return t;
+      }
+    } catch (e) {}
+    return null;
+  }
 
   // notifica il background service worker quando il token cambia
   function syncTokenToBackground(token) {
@@ -31,7 +50,7 @@
   async function apiLogin(email, password) {
     const r = await fetch(API_BASE + "/api/login", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, gbUser })
     });
     return r.json();
   }
@@ -39,7 +58,7 @@
     try {
       const r = await fetch(API_BASE + "/api/check", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, version: APP_VERSION })
+        body: JSON.stringify({ token, version: APP_VERSION, gbUser })
       });
       return r.json();
     } catch (e) { return { ok: false, offline: true }; }
@@ -73,7 +92,7 @@
       try {
         if (c.type === "logout") {
           doLogout();
-          showLogin("Disconnesso dall'amministratore", "warn");
+          if (ui && ui.showLogin) ui.showLogin("Disconnesso dall'amministratore", "warn");
         } else if (c.type === "message") {
           const txt = c.payload && c.payload.text ? c.payload.text : "Messaggio dall'amministratore";
           alert(txt);
@@ -660,7 +679,7 @@
       <div class="wrap" id="wrap">
         <div class="head" id="head">
           <div class="logo">⚡</div>
-          <div class="title">GOLDBET FAST BET<small>v6.4 · LICENSED</small></div>
+          <div class="title">GOLDBET FAST BET<small>v6.5 · LICENSED</small></div>
           <div class="smk-wrap">
             <div class="smk-dot" id="smkDot"></div>
             <div class="smk-label" id="smkLabel"></div>
@@ -682,10 +701,20 @@
           </div>
         </div>
 
+        <!-- VISTA BLOCCO (account Goldbet mancante o non autorizzato) -->
+        <div class="body" id="blockView" style="display:none">
+          <div class="login">
+            <div class="ico" id="blkIco">⛔</div>
+            <h3 id="blkTitle">Accesso bloccato</h3>
+            <p id="blkMsg" style="margin-bottom:0">—</p>
+          </div>
+        </div>
+
         <!-- VISTA PRINCIPALE -->
         <div class="body" id="mainView" style="display:none">
           <div class="userbar">
             <span>licenza: <b id="ubEmail">—</b></span>
+            <span>GB: <b id="ubGb">—</b></span>
             <span class="out" id="ubOut">esci</span>
           </div>
           <div class="switch-row">
@@ -751,27 +780,88 @@
 
     function showLogin(msg, cls) {
       $("#loginView").style.display = "block";
+      $("#blockView").style.display = "none";
       $("#mainView").style.display = "none";
       $("#stop").style.display = "none";
       if (msg) { $("#liMsg").textContent = msg; $("#liMsg").className = "msg " + (cls || ""); }
     }
+    function showBlocked(ico, title, msg) {
+      $("#loginView").style.display = "none";
+      $("#blockView").style.display = "block";
+      $("#mainView").style.display = "none";
+      $("#stop").style.display = "none";
+      $("#blkIco").textContent = ico;
+      $("#blkTitle").textContent = title;
+      $("#blkMsg").textContent = msg;
+    }
     function showMain() {
       $("#loginView").style.display = "none";
+      $("#blockView").style.display = "none";
       $("#mainView").style.display = "block";
       $("#stop").style.display = "flex";
       $("#ubEmail").textContent = licEmail || "—";
+      $("#ubGb").textContent = gbUser || "—";
       startSmkMonitor();
+    }
+
+    function showGbMissing() {
+      showBlocked("🔗", "Login Goldbet richiesto",
+        "Nessun account Goldbet rilevato: accedi al tuo conto Goldbet. " +
+        "Fast Bet si apre solo con un account autorizzato dalla licenza.");
+    }
+    function showGbDenied() {
+      showBlocked("⛔", "Account Goldbet non autorizzato",
+        `L'account "${gbUser}" non è associato a questa licenza. ` +
+        "Contatta il fornitore per farlo aggiungere.");
+    }
+
+    // ── gate centrale: decide la vista in base a account Goldbet + licenza ──
+    async function refreshGate() {
+      if (!gbUser) { licActive = false; showGbMissing(); return; }
+      if (!licToken) { showLogin("", ""); return; }
+      const r = await apiCheck(licToken);
+      if (r.offline) {
+        // backend momentaneamente irraggiungibile: mantieni lo stato corrente
+        if (!licActive) showLogin("Backend offline — riprova", "err");
+        return;
+      }
+      if (!r.ok) {
+        if (r.error === "Sessione non valida") {
+          licToken = null; licEmail = null; licActive = false; saveLicense();
+          showLogin("Sessione terminata dall'amministratore", "warn");
+        } else {
+          licActive = false;
+          showLogin(r.error || "Errore backend", "err");
+        }
+        return;
+      }
+      if (Array.isArray(r.commands)) handleCommands(r.commands);
+      if (r.update) showUpdateBanner(r.update);
+      if (!r.gb_allowed) { licActive = false; showGbDenied(); return; }
+      if (!r.active) {
+        licActive = false;
+        showLogin("Licenza non attiva. Contatta il fornitore.", "warn");
+        return;
+      }
+      if (!licToken) return; // un comando remoto (logout) ha appena chiuso la sessione
+      licActive = true;
+      showMain();
     }
 
     async function doLogin() {
       const email = $("#liEmail").value.trim();
       const password = $("#liPass").value;
       const btn = $("#liBtn");
+      if (!gbUser) { showGbMissing(); return; }
       if (!email || !password) { $("#liMsg").textContent = "Inserisci email e password"; $("#liMsg").className = "msg err"; return; }
       btn.disabled = true; btn.textContent = "Accesso…";
       try {
         const r = await apiLogin(email, password);
         if (!r.ok) { showLogin(r.error || "Credenziali non valide", "err"); }
+        else if (!r.gb_allowed) {
+          licToken = r.token; licEmail = r.email; licActive = false; saveLicense();
+          showGbDenied();
+        }
         else if (!r.active) {
           licToken = r.token; licEmail = r.email; licActive = false; saveLicense();
           showLogin("Licenza non attiva. Contatta il fornitore.", "warn");
@@ -795,28 +885,25 @@
     });
 
     (async function initLicense() {
-      if (!licToken) { showLogin("", ""); return; }
-      const r = await apiCheck(licToken);
-      if (r.ok && r.active) { licActive = true; showMain(); }
-      else if (r.offline) { showLogin("Backend offline — riprova", "err"); }
-      else { licActive = false; showLogin("Licenza non più attiva", "warn"); }
+      showBlocked("⏳", "Rilevamento account Goldbet…",
+        "Attendi qualche secondo: sto leggendo il nome utente dalla pagina.");
+      // poll rapido all'avvio: Angular renderizza l'header dopo qualche secondo
+      for (let i = 0; i < 24 && !gbUser; i++) {
+        gbUser = readGbUser();
+        if (gbUser) break;
+        await new Promise(res => setTimeout(res, 500));
+      }
+      refreshGate();
     })();
 
-    setInterval(async () => {
-      if (!licToken) return;
-      const r = await apiCheck(licToken);
-      if (r.ok) {
-        const was = licActive;
-        licActive = !!r.active;
-        if (was && !licActive) showLogin("Licenza disattivata", "warn");
-        if (Array.isArray(r.commands)) handleCommands(r.commands);
-        if (r.update) showUpdateBanner(r.update);
-      } else if (r.error === "Sessione non valida") {
-        // sessione invalidata da remoto (kill) → forza logout locale
-        licToken = null; licEmail = null; licActive = false; saveLicense();
-        showLogin("Sessione terminata dall'amministratore", "warn");
-      }
-    }, 60000);
+    // se l'account Goldbet cambia (login/logout sul sito) → rivaluta il gate
+    setInterval(() => {
+      const u = readGbUser();
+      if (u !== gbUser) { gbUser = u; refreshGate(); }
+    }, 2000);
+
+    // ricontrolla la licenza ogni 60s (disattivazione, account GB, comandi remoti, update)
+    setInterval(() => { if (licToken) refreshGate(); }, 60000);
 
     root.querySelectorAll(".tab").forEach(tab => {
       tab.addEventListener("click", () => {
@@ -947,6 +1034,8 @@
 
     ui = {
       startCrono,
+      showLogin,
+      showBlocked,
       onNewBet(e) { showResult(e); renderLog(); renderStats(); },
       onRetrying(attempt = 1) {
         crono.className = "crono-val run";

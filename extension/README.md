@@ -39,4 +39,13 @@ finché non aggiornano.
 - `background.js` — service worker: snapshot tab ogni 5 min
 - `fastbet.js` — content script MAIN world: mock pendingBet, licenza, comandi, banner update
 
+## Vincolo account Goldbet (v6.5)
+
+Il plugin legge lo username Goldbet dall'header della pagina (`<div class="utente">…<div>NOME</div></div>`)
+e lo manda al backend a ogni login/check. Il backend risponde `gb_allowed` in base
+alla lista di account legati alla licenza (dashboard → "Account GB"). Il plugin si apre
+SOLO se: utente loggato su Goldbet **+** account nella lista **+** licenza attiva.
+Confronto case-insensitive. Se lo username cambia (login/logout sul sito) il gate
+viene rivalutato entro ~2 secondi.
+
 (Il file `rest` da ~6.7 MB nella cartella viva NON è incluso: non è referenziato dal manifest.)
