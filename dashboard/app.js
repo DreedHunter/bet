@@ -182,6 +182,21 @@ async function changePass(userId) {
 // ───────── utilizzo ─────────
 // Trasforma un evento grezzo in testo leggibile + classe colore.
 // cls: ok (verde) | bad (rosso) | warn (giallo) | dim (grigio)
+// riassume le selezioni di una scommessa: "Norvegia - Francia (Prossimo Gol 1° T → Casa)"
+// per la multipla concatena con " + ". Ritorna "" se non ci sono dati (client vecchio).
+function selText(d) {
+  const sel = Array.isArray(d.selezioni) ? d.selezioni : [];
+  if (!sel.length) return "";
+  const parts = sel.map(s => {
+    const partita = s.partita || [s.firstTeam, s.secondTeam].filter(Boolean).join(" - ") || "?";
+    const dett = [s.mercato, s.esito].filter(Boolean).join(" → ");
+    return dett ? `${partita} (${dett})` : partita;
+  });
+  return parts.length > 3
+    ? parts.slice(0, 3).join(" + ") + ` + altre ${parts.length - 3}`
+    : parts.join(" + ");
+}
+
 function fmtEvent(event, detailRaw) {
   let d = {};
   try { d = typeof detailRaw === "string" ? JSON.parse(detailRaw || "{}") : (detailRaw || {}); } catch {}
@@ -213,7 +228,7 @@ function fmtEvent(event, detailRaw) {
     }
 
     case "bet": {
-      const p = ["puntata " + money(d.stake)];
+      const p = [selText(d), "puntata " + money(d.stake)].filter(Boolean);
       if (quote) p.push("quota " + quote + (d.quotaTot && d.quote.length > 1 ? " = " + d.quotaTot : ""));
       else if (d.quotaTot) p.push("quota " + d.quotaTot);
       if (d.vincita != null) p.push("vincita pot. " + money(d.vincita));
@@ -225,7 +240,7 @@ function fmtEvent(event, detailRaw) {
     }
 
     case "bet_errore": {
-      const p = ["puntata " + money(d.stake)];
+      const p = [selText(d), "puntata " + money(d.stake)].filter(Boolean);
       if (quote) p.push("quota " + quote + (d.quotaTot && d.quote.length > 1 ? " = " + d.quotaTot : ""));
       if (d.vincita != null) p.push("vincita pot. " + money(d.vincita));
       if (d.code != null) p.push("errore " + d.code);
