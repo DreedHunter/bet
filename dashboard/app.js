@@ -188,7 +188,9 @@ function selText(d) {
   const sel = Array.isArray(d.selezioni) ? d.selezioni : [];
   if (!sel.length) return "";
   const parts = sel.map(s => {
-    const partita = s.partita || [s.firstTeam, s.secondTeam].filter(Boolean).join(" - ") || "?";
+    // partita nota → nome; altrimenti ripiega su sport/torneo; ultimo: "partita n.d."
+    let partita = s.partita || [s.firstTeam, s.secondTeam].filter(Boolean).join(" - ");
+    if (!partita) partita = [s.sport, s.torneo].filter(Boolean).join(" · ") || "partita n.d.";
     const dett = [s.mercato, s.esito].filter(Boolean).join(" → ");
     return dett ? `${partita} (${dett})` : partita;
   });

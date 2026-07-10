@@ -13,10 +13,12 @@
   //              potenziale, coupon, esito (piazzata / errore 41 con motivo).
   // Novità v6.7: log arricchito con partita, squadre, mercato ed esito di ogni
   //              selezione (letti dal payload insertBet).
+  // Novità v6.8: fallback nome partita dallo slug URL + sport/torneo quando il
+  //              payload non contiene i nomi (evita il "?" nel log).
 
   // ───────────────────────── licenza ─────────────────────────
   const API_BASE   = "https://bet-production-b260.up.railway.app";
-  const APP_VERSION = "6.7";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
+  const APP_VERSION = "6.8";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
   const LS_TOKEN   = "gbfb_token";
   const LS_EMAIL   = "gbfb_email";
   let licToken     = null;
@@ -154,6 +156,22 @@
     return n >= 101 ? +(n / 100).toFixed(2) : n;
   }
 
+  // ricostruisce il nome partita dallo slug dell'URL Goldbet quando il payload
+  // non lo contiene. Es. ".../calcio/mondiali/norvegia-francia" → "Norvegia-Francia".
+  function partitaDaUrl() {
+    try {
+      const seg = location.pathname.split("/").filter(Boolean).pop() || "";
+      const slug = seg.split("?")[0];
+      if (!slug || !slug.includes("-")) return null;
+      return slug.split("-")
+        .map(w => w ? w[0].toUpperCase() + w.slice(1) : w)
+        .join(" ")
+        .replace(/\bVs\b/i, "-");
+    } catch (e) { return null; }
+  }
+
+  const nz = (v) => { const s = (v == null ? "" : String(v)).trim(); return s || null; };
+
   // estrae dal payload insertBet: importo, quote, quota totale, vincita potenziale,
   // e per ogni selezione partita/squadre/mercato/esito.
   // Struttura reale: { Payload: { totalStake, events: [{ oddsValue, selName,
@@ -163,21 +181,24 @@
       const p = JSON.parse(body);
       const payload = p?.Payload || p?.request?.Payload || {};
       const events = payload.events || [];
+      const urlPartita = partitaDaUrl();
       const quote = [];
       const selezioni = events.map(e => {
         const q = normOdd(e.oddsValue);
         if (q) quote.push(q);
-        const partita = e.masterAamsEventName || e.evtName ||
-          [e.firstTeam, e.secondTeam].filter(Boolean).join(" - ") || null;
+        const first = nz(e.firstTeam), second = nz(e.secondTeam);
+        const partita = nz(e.masterAamsEventName) || nz(e.evtName) ||
+          ([first, second].filter(Boolean).join(" - ") || null) ||
+          (events.length === 1 ? urlPartita : null);  // fallback URL solo per la singola
         return {
           partita,
-          firstTeam: e.firstTeam || null,
-          secondTeam: e.secondTeam || null,
-          mercato: e.markName || null,   // es. "Prossimo Gol 1° Tempo"
-          esito: e.selName || null,      // es. "Casa" / "Over 2.5"
+          firstTeam: first,
+          secondTeam: second,
+          mercato: nz(e.markName),   // es. "Prossimo Gol 1° Tempo"
+          esito: nz(e.selName),      // es. "Casa" / "Over 2.5"
           quota: q,
-          sport: e.sportName || null,
-          torneo: e.tName || null
+          sport: nz(e.sportName),
+          torneo: nz(e.tName)
         };
       });
       const quotaTot = quote.length ? +quote.reduce((a, q) => a * q, 1).toFixed(2) : null;
@@ -787,7 +808,7 @@
       <div class="wrap" id="wrap">
         <div class="head" id="head">
           <div class="logo">⚡</div>
-          <div class="title">GOLDBET FAST BET<small>v6.7 · LICENSED</small></div>
+          <div class="title">GOLDBET FAST BET<small>v6.8 · LICENSED</small></div>
           <div class="smk-wrap">
             <div class="smk-dot" id="smkDot"></div>
             <div class="smk-label" id="smkLabel"></div>
