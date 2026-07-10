@@ -180,25 +180,104 @@ async function changePass(userId) {
 }
 
 // ───────── utilizzo ─────────
+// Trasforma un evento grezzo in testo leggibile + classe colore.
+// cls: ok (verde) | bad (rosso) | warn (giallo) | dim (grigio)
+function fmtEvent(event, detailRaw) {
+  let d = {};
+  try { d = typeof detailRaw === "string" ? JSON.parse(detailRaw || "{}") : (detailRaw || {}); } catch {}
+  const money = v => (v == null ? "—" : "€" + (+v).toFixed(2));
+  const gbTxt = d.gbUser ? `account GB "${d.gbUser}"` : null;
+  const quote = Array.isArray(d.quote) && d.quote.length ? d.quote.join(" × ") : null;
+
+  switch (event) {
+    case "login":
+      if (d.active) return { cls: "ok", badge: "LOGIN OK", text: (gbTxt || "") };
+      if (d.gbAllowed === false && d.gbUser)
+        return { cls: "bad", badge: "ACCESSO NEGATO", text: `account Goldbet "${d.gbUser}" NON autorizzato per questa licenza` };
+      if (d.gbAllowed === false)
+        return { cls: "bad", badge: "ACCESSO NEGATO", text: "nessun account Goldbet rilevato (non loggato su Goldbet o plugin vecchio)" };
+      return { cls: "warn", badge: "LOGIN", text: "licenza non attiva" + (gbTxt ? " · " + gbTxt : "") };
+
+    case "login_fallito":
+      return { cls: "bad", badge: "PASSWORD ERRATA", text: "tentativo di accesso respinto" + (gbTxt ? " · " + gbTxt : "") };
+
+    case "check": {
+      const v = d.version ? "v" + d.version : null;
+      const extra = [gbTxt, v].filter(Boolean).join(" · ");
+      if (d.active) return { cls: "dim", badge: "check", text: "attivo" + (extra ? " · " + extra : "") };
+      if (d.gbUser && d.gbAllowed === false)
+        return { cls: "bad", badge: "check BLOCCATO", text: `account Goldbet "${d.gbUser}" non autorizzato` + (v ? " · " + v : "") };
+      if (d.gbAllowed === false)
+        return { cls: "bad", badge: "check BLOCCATO", text: "nessun account Goldbet rilevato" + (v ? " · " + v : "") };
+      return { cls: "warn", badge: "check OFF", text: "licenza non attiva" + (extra ? " · " + extra : "") };
+    }
+
+    case "bet": {
+      const p = ["puntata " + money(d.stake)];
+      if (quote) p.push("quota " + quote + (d.quotaTot && d.quote.length > 1 ? " = " + d.quotaTot : ""));
+      else if (d.quotaTot) p.push("quota " + d.quotaTot);
+      if (d.vincita != null) p.push("vincita pot. " + money(d.vincita));
+      if (d.coupon) p.push("coupon " + d.coupon);
+      if (d.retry) p.push("piazzata al retry #" + d.retry + " (quota aggiornata)");
+      if (d.totale != null) p.push(d.totale + "ms");
+      p.push(d.mock ? "mock ON" : "mock OFF");
+      return { cls: "ok", badge: "SCOMMESSA ✓", text: p.join(" · ") };
+    }
+
+    case "bet_errore": {
+      const p = ["puntata " + money(d.stake)];
+      if (quote) p.push("quota " + quote + (d.quotaTot && d.quote.length > 1 ? " = " + d.quotaTot : ""));
+      if (d.vincita != null) p.push("vincita pot. " + money(d.vincita));
+      if (d.code != null) p.push("errore " + d.code);
+      if (d.motivo) p.push(d.motivo);
+      if (d.tentativi) p.push("dopo " + d.tentativi + " retry");
+      return { cls: "bad", badge: "SCOMMESSA ✕", text: p.join(" · ") };
+    }
+
+    case "logout":
+      return { cls: "dim", badge: "logout", text: "sessione chiusa" };
+
+    default:
+      return { cls: "dim", badge: event, text: detailRaw ? String(detailRaw) : "" };
+  }
+}
+
+let usageRows = [];
 async function loadUsage(userId = null) {
   const path = userId ? `/api/admin/usage?userId=${userId}` : "/api/admin/usage";
   const r = await api(path);
   if (!r.ok) return;
-  renderUsage(r.usage);
+  usageRows = r.usage || [];
+  if (!userId) $("usageTitle").textContent = "Utilizzo recente";
+  renderUsage();
 }
 function viewUsage(userId, email) {
   loadUsage(userId);
-  document.querySelector(".panel:last-child h2").firstChild.textContent = "Utilizzo di " + email + " ";
+  $("usageTitle").textContent = "Utilizzo di " + email;
+  $("usageTitle").scrollIntoView({ behavior: "smooth" });
 }
-function renderUsage(usage) {
+function renderUsage() {
   const list = $("usageList");
-  if (!usage.length) { list.innerHTML = '<div class="empty">Nessun evento</div>'; return; }
-  list.innerHTML = usage.map(u => `
+  const mode = $("usageFilter") ? $("usageFilter").value : "importanti";
+  const q = ($("usageSearch")?.value || "").toLowerCase().trim();
+
+  let rows = usageRows.map(u => ({ u, f: fmtEvent(u.event, u.detail) }));
+  if (mode === "importanti") rows = rows.filter(r => r.u.event !== "check");
+  else if (mode === "bet") rows = rows.filter(r => r.u.event === "bet" || r.u.event === "bet_errore");
+  else if (mode === "accessi") rows = rows.filter(r => ["login", "login_fallito", "logout"].includes(r.u.event));
+  else if (mode === "negati") rows = rows.filter(r => r.f.cls === "bad");
+  if (q) rows = rows.filter(r =>
+    (r.u.email || "").toLowerCase().includes(q) ||
+    r.f.badge.toLowerCase().includes(q) ||
+    r.f.text.toLowerCase().includes(q));
+
+  if (!rows.length) { list.innerHTML = '<div class="empty">Nessun evento per questo filtro</div>'; return; }
+  list.innerHTML = rows.map(({ u, f }) => `
     <div class="usage-row">
       <span>${new Date(u.ts).toLocaleString("it-IT", { hour12: false })}</span>
       <span>${esc(u.email)}</span>
-      <span class="ev">${esc(u.event)}</span>
-      <span>${esc(u.detail || "")}</span>
+      <span class="ev ${f.cls}">${esc(f.badge)}</span>
+      <span>${esc(f.text)}</span>
     </div>`).join("");
 }
 
@@ -275,12 +354,21 @@ async function viewTimeline(userId, email) {
   const r = await api(`/api/admin/timeline?userId=${userId}`);
   if (!r.ok) return;
   const rows = r.timeline || [];
-  const dom = () => rows.map(e => `
+  const dom = () => rows.map(e => {
+    let f;
+    if (e.kind === "tabs") {
+      let d = {}; try { d = JSON.parse(e.detail || "{}"); } catch {}
+      f = { cls: "dim", badge: "tabs", text: (d.count != null ? d.count + " tab · " : "") + (d.title || d.url || "") };
+    } else {
+      f = fmtEvent(e.kind, e.detail);
+    }
+    return `
     <div class="tl-row">
       <span>${new Date(e.ts).toLocaleString("it-IT", { hour12: false })}</span>
-      <span class="ev">${esc(e.kind)}</span>
-      <span>${esc(e.detail || "")}</span>
-    </div>`).join("");
+      <span class="ev ${f.cls}">${esc(f.badge)}</span>
+      <span>${esc(f.text)}</span>
+    </div>`;
+  }).join("");
   $("timelineTitle").textContent = "Timeline di " + email;
   $("timelineList").innerHTML = rows.length ? dom() : '<div class="empty">Nessun evento</div>';
   $("timelinePanel").style.display = "block";

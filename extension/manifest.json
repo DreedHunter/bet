@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Goldbet Fast Bet",
-  "version": "6.5",
+  "version": "6.6",
   "description": "Conferma istantanea su Goldbet (mock pendingBet). GUI overlay + login con licenza + vincolo account Goldbet + telemetria tab + retry automatico quota scaduta.",
   "permissions": ["tabs"],
   "host_permissions": [

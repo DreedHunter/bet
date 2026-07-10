@@ -62,8 +62,12 @@
 
     .empty { text-align: center; color: var(--txt-dim); padding: 24px; font-size: 13px; }
     .usage-list { max-height: 320px; overflow-y: auto; font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
-    .usage-row { display: grid; grid-template-columns: 150px 1fr 90px 1fr; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #0c1840; color: #b9c4e8; }
+    .usage-row { display: grid; grid-template-columns: 150px 170px 140px 1fr; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #0c1840; color: #b9c4e8; }
     .usage-row .ev { color: var(--giallo); font-weight: 700; }
+    .ev.ok   { color: var(--green) !important; }
+    .ev.bad  { color: var(--red) !important; }
+    .ev.warn { color: var(--giallo) !important; }
+    .ev.dim  { color: var(--txt-dim) !important; }
 
     .tab-snapshot { margin-bottom: 10px; }
     .tab-snapshot-header { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
@@ -118,7 +122,7 @@
     .dom-track { background: #16264f; border-radius: 5px; height: 12px; overflow: hidden; }
     .dom-fill { height: 100%; background: var(--giallo); border-radius: 5px; }
     .dom-min { color: var(--txt-dim); font-size: 11px; text-align: right; }
-    .tl-row { display: grid; grid-template-columns: 150px 90px 1fr; gap: 8px; padding: 6px 10px;
+    .tl-row { display: grid; grid-template-columns: 150px 140px 1fr; gap: 8px; padding: 6px 10px;
       border-bottom: 1px solid #0c1840; color: #b9c4e8; font-size: 12px;
       font-family: ui-monospace, Consolas, monospace; }
     .tl-row .ev { color: var(--giallo); font-weight: 700; }
@@ -191,7 +195,17 @@
     </div>
 
     <div class="panel">
-      <h2>Utilizzo recente <button class="btn ghost sm" onclick="loadUsage()">↻ Aggiorna</button></h2>
+      <h2><span id="usageTitle">Utilizzo recente</span> <button class="btn ghost sm" onclick="loadUsage()">↻ Tutti</button></h2>
+      <div class="tabs-filter">
+        <select id="usageFilter" onchange="renderUsage()" style="width:auto;margin:0">
+          <option value="importanti">Importanti (senza check)</option>
+          <option value="tutti">Tutti gli eventi</option>
+          <option value="bet">Solo scommesse</option>
+          <option value="accessi">Solo accessi</option>
+          <option value="negati">Solo negati / errori</option>
+        </select>
+        <input id="usageSearch" placeholder="Filtra per email o testo…" oninput="renderUsage()">
+      </div>
       <div class="usage-list" id="usageList"><div class="empty">Nessun evento</div></div>
     </div>
 

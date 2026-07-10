@@ -107,7 +107,13 @@ const server = createServer(async (req, res) => {
         return json(res, 429, { ok: false, error: "Troppi tentativi, riprova tra un minuto" });
       const { email, password, gbUser } = await readBody(req);
       const user = DB.checkLogin(email || "", password || "");
-      if (!user) return json(res, 401, { ok: false, error: "Credenziali non valide" });
+      if (!user) {
+        // se l'email esiste, registra il tentativo fallito (password sbagliata)
+        const existing = DB.getUserByEmail(email || "");
+        if (existing) DB.logUsage(existing.id, "fastbet", "login_fallito",
+          { motivo: "password errata", gbUser: gbUser || null });
+        return json(res, 401, { ok: false, error: "Credenziali non valide" });
+      }
       const licenseActive = DB.isProductActive(user.id, "fastbet");
       const gbAllowed = DB.isGoldbetAccountAllowed(user.id, gbUser);
       const active = licenseActive && gbAllowed;
@@ -129,7 +135,7 @@ const server = createServer(async (req, res) => {
       const gbAllowed = DB.isGoldbetAccountAllowed(sess.user_id, gbUser);
       const active = licenseActive && gbAllowed;
       const commands = DB.popCommands(sess.user_id);
-      DB.logUsage(sess.user_id, "fastbet", "check", { active, gbUser: gbUser || null, version: version || null });
+      DB.logUsage(sess.user_id, "fastbet", "check", { active, gbUser: gbUser || null, gbAllowed, version: version || null });
       // info aggiornamento se il client ha mandato la sua versione
       let update = null;
       if (version) {

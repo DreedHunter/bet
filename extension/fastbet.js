@@ -9,10 +9,12 @@
   //              quota fresca da getDetailsEventLive e ripiazza la scommessa.
   // Novità v6.5: vincolo account Goldbet — il plugin si apre SOLO se lo username
   //              loggato su Goldbet è nella lista autorizzata della licenza.
+  // Novità v6.6: telemetria scommesse dettagliata — importo, quote, vincita
+  //              potenziale, coupon, esito (piazzata / errore 41 con motivo).
 
   // ───────────────────────── licenza ─────────────────────────
   const API_BASE   = "https://bet-production-b260.up.railway.app";
-  const APP_VERSION = "6.5";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
+  const APP_VERSION = "6.6";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
   const LS_TOKEN   = "gbfb_token";
   const LS_EMAIL   = "gbfb_email";
   let licToken     = null;
@@ -138,6 +140,46 @@
   let t0 = 0, t1 = 0;
   let pendingXhr  = null;
   const aamsTicketID = "df07ea0613304e9e910b";
+
+  // contesto dell'ultima scommessa (per la telemetria dettagliata)
+  let betCtx = null;
+  let lastRetryAttempt = 0;
+
+  // Goldbet a volte manda le quote come interi x100 (185 = 1.85)
+  function normOdd(v) {
+    const n = parseFloat(String(v).replace(",", "."));
+    if (!isFinite(n) || n <= 0) return null;
+    return n >= 101 ? +(n / 100).toFixed(2) : n;
+  }
+
+  // estrae dal payload insertBet: importo, quote delle selezioni, quota totale, vincita potenziale
+  function parseBetCtx(body) {
+    try {
+      const p = JSON.parse(body);
+      const events = p?.Payload?.events || [];
+      const quote = events.map(e => normOdd(e.oddsValue)).filter(Boolean);
+      const quotaTot = quote.length ? +quote.reduce((a, q) => a * q, 1).toFixed(2) : null;
+      const stk = p?.Payload?.totalStake || 0;
+      return {
+        stake: stk,
+        quote,
+        quotaTot,
+        vincita: quotaTot ? +(quotaTot * stk).toFixed(2) : null,
+        nSel: events.length
+      };
+    } catch (e) { return null; }
+  }
+
+  // telemetria: scommessa rifiutata (errore server / quota scaduta non recuperata)
+  function logBetError(code, motivo, tentativi = 0) {
+    apiEvent("bet_errore", {
+      esito: "rifiutata", code, motivo, tentativi,
+      stake,
+      quote: (betCtx && betCtx.quote) || [],
+      quotaTot: betCtx ? betCtx.quotaTot : null,
+      vincita: betCtx ? betCtx.vincita : null
+    });
+  }
 
   // auth headers catturati dalla prima XHR autenticata — usati dal monitor SMK
   let globalAuthHeaders = {};
@@ -337,7 +379,8 @@
     return { status: "notfound" };
   }
 
-  // Esegue un insertBet con un payload aggiornato. onDone(success).
+  // Esegue un insertBet con un payload aggiornato. onDone(success, data, logged):
+  // logged=true se fireMockPending ha già registrato la giocata nel log.
   function doInsert(payload, headers, onDone) {
     const xhr = new XMLHttpRequest();
     _open.call(xhr, "POST", "https://www.goldbet.it/api/sport/book/insertBet", true);
@@ -350,14 +393,15 @@
         if (data?.data?.couponCode && data?.success !== false) {
           couponCode = data.data.couponCode;
           t1 = performance.now();
-          if (mockEnabled && pendingXhr) fireMockPending();
-          onDone(true, data);
+          let logged = false;
+          if (mockEnabled && pendingXhr) logged = !!fireMockPending();
+          onDone(true, data, logged);
         } else {
-          onDone(false, data);
+          onDone(false, data, false);
         }
-      } catch (e) { onDone(false, null); }
+      } catch (e) { onDone(false, null, false); }
     });
-    xhr.addEventListener("error", () => onDone(false, null));
+    xhr.addEventListener("error", () => onDone(false, null, false));
     _send.call(xhr, JSON.stringify(payload));
   }
 
@@ -368,7 +412,11 @@
     let payload;
     try { payload = JSON.parse(originalBody); } catch (e) { return; }
     const events = payload?.Payload?.events || [];
-    if (!events.length) { if (ui) ui.onRetryFailed("payload"); return; }
+    if (!events.length) {
+      logBetError(41, "errore interno nel coupon", attempt - 1);
+      if (ui) ui.onRetryFailed("payload");
+      return;
+    }
 
     const MAX_ATTEMPTS = 3;
 
@@ -384,8 +432,16 @@
       // se anche una sola selezione è ritirata o sospesa → inutile insistere
       const retired   = results.find(r => r.probe.status === "retired");
       const suspended = results.find(r => r.probe.status === "suspended");
-      if (suspended) { if (ui) ui.onRetryFailed("suspended"); return; }
-      if (retired)   { if (ui) ui.onRetryFailed("retired");   return; }
+      if (suspended) {
+        logBetError(41, "mercato sospeso (lucchetto)", attempt - 1);
+        if (ui) ui.onRetryFailed("suspended");
+        return;
+      }
+      if (retired) {
+        logBetError(41, "quota ritirata dal bookmaker", attempt - 1);
+        if (ui) ui.onRetryFailed("retired");
+        return;
+      }
 
       // tutte vive → aggiorna oddsId/oddsValue/markId
       let updated = false;
@@ -396,17 +452,31 @@
         if (probe.markId) evt.markId = probe.markId;
         updated = true;
       }
-      if (!updated) { if (ui) ui.onRetryFailed("notfound"); return; }
+      if (!updated) {
+        logBetError(41, "selezione non più presente nei mercati live", attempt - 1);
+        if (ui) ui.onRetryFailed("notfound");
+        return;
+      }
 
       if (ui) ui.onRetrying(attempt);
 
-      doInsert(payload, headers, (ok, data) => {
-        if (ok) { if (ui) ui.onRetryOk(); return; }
+      lastRetryAttempt = attempt;
+      doInsert(payload, headers, (ok, data, logged) => {
+        if (ok) {
+          if (ui) ui.onRetryOk();
+          if (!logged) {
+            // senza mock non arriverà nessun pendingBet per il retry: logga qui l'esito
+            const t2 = performance.now();
+            addLog(Math.round(t1 - t0), 0, Math.round(t2 - t0), false);
+          }
+          return;
+        }
         // fallito di nuovo: se è ancora 41 e abbiamo tentativi, riprova con quota più fresca
         if (data?.error?.error === 41 && data?.error?.expiredSelections?.length && attempt < MAX_ATTEMPTS) {
           _detailsCache.ts = 0; // invalida cache per forzare fetch fresca
           retryInsertBet(JSON.stringify(payload), data.error.expiredSelections, headers, attempt + 1);
         } else {
+          logBetError(data?.error?.error ?? 41, "quota non più disponibile dopo i retry", attempt);
           if (ui) ui.onRetryFailed("server");
         }
       });
@@ -418,7 +488,9 @@
     if (this._url && this._url.includes("/api/sport/book/insertBet")) {
       t0 = performance.now(); t1 = 0;
       couponCode = null; pendingXhr = null;
-      try { const p = JSON.parse(body); stake = p?.Payload?.totalStake || 1.0; } catch (e) {}
+      betCtx = parseBetCtx(body);
+      stake = (betCtx && betCtx.stake) || 1.0;
+      lastRetryAttempt = 0;
       if (ui) ui.startCrono(Date.now());
 
       const capturedHeaders = this._headers || {};
@@ -435,9 +507,10 @@
           } else if (data?.error?.error === 41 && data?.error?.expiredSelections?.length) {
             // quota scaduta → retry intelligente (distingue recuperabile vs ritirata)
             retryInsertBet(_body, data.error.expiredSelections, capturedHeaders);
-          } else if (data?.success === false && ui) {
-            // altro errore → mostra il codice
-            ui.onRetryFailed("err" + (data?.error?.error ?? "?"));
+          } else if (data?.success === false) {
+            // altro errore → logga e mostra il codice
+            logBetError(data?.error?.error ?? null, "rifiutata dal server", 0);
+            if (ui) ui.onRetryFailed("err" + (data?.error?.error ?? "?"));
           }
         } catch (e) {}
       });
@@ -466,7 +539,7 @@
   };
 
   function fireMockPending() {
-    if (!pendingXhr || !couponCode || !t1) return;
+    if (!pendingXhr || !couponCode || !t1) return false;
     const mockBody = JSON.stringify({
       couponCode, aamsTicketID,
       couponDate: new Date().toISOString(),
@@ -490,6 +563,7 @@
 
     pendingXhr = null;
     couponCode = null;
+    return true;
   }
 
   function addLog(insert, pend, totale, isMock) {
@@ -500,7 +574,16 @@
     if (log.length > 10) log.pop();
     saveState();
     if (ui) ui.onNewBet(log[0]);
-    apiEvent("bet", { stake, insert, pend, totale, mock: isMock });
+    apiEvent("bet", {
+      esito: "piazzata",
+      stake,
+      quote: (betCtx && betCtx.quote) || [],
+      quotaTot: betCtx ? betCtx.quotaTot : null,
+      vincita: betCtx ? betCtx.vincita : null,
+      coupon: couponCode || null,
+      retry: lastRetryAttempt || 0,
+      insert, pend, totale, mock: isMock
+    });
   }
 
   // trova il data-marketidlong del mercato "Prossimo Gol" cercando per nome nel DOM
@@ -679,7 +762,7 @@
       <div class="wrap" id="wrap">
         <div class="head" id="head">
           <div class="logo">⚡</div>
-          <div class="title">GOLDBET FAST BET<small>v6.5 · LICENSED</small></div>
+          <div class="title">GOLDBET FAST BET<small>v6.6 · LICENSED</small></div>
           <div class="smk-wrap">
             <div class="smk-dot" id="smkDot"></div>
             <div class="smk-label" id="smkLabel"></div>
