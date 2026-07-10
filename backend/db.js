@@ -132,6 +132,23 @@ function verifyPassword(password, salt, expectedHash) {
 }
 const now = () => new Date().toISOString();
 
+// ───────── utente di test garantito ad ogni avvio/deploy ─────────
+// Idempotente: crea (o allinea) l'utente "a"/"a" con fastbet attivo e
+// l'account Goldbet "dreedhunter" legato. Disattivabile con SEED_TEST_USER=0.
+function seedTestUser() {
+  if (process.env.SEED_TEST_USER === "0") return;
+  const EMAIL = "a", PASS = "a", GB = "dreedhunter";
+  try {
+    let u = getUserByEmail(EMAIL);
+    if (!u) u = createUser(EMAIL, PASS, "utente di test (seed automatico)");
+    else setPassword(u.id, PASS);            // riallinea la password a "a"
+    setActivation(u.id, "fastbet", true, null);
+    const accounts = getGoldbetAccounts(u.id);
+    if (!accounts.includes(GB)) setGoldbetAccounts(u.id, [...accounts, GB]);
+    console.log(`  👤 Utente di test garantito: ${EMAIL}/${PASS} · GB: ${GB}`);
+  } catch (e) { console.error("seedTestUser:", e); }
+}
+
 // ───────────────────────── utenti ─────────────────────────
 export function createUser(email, password, note = "") {
   const { hash, salt } = hashPassword(password);
@@ -567,5 +584,8 @@ export function compareVersions(a, b) {
   }
   return 0;
 }
+
+// seed dell'utente di test (dopo che tutte le funzioni sono definite)
+seedTestUser();
 
 export default db;
