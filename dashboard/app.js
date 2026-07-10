@@ -36,7 +36,7 @@ let liveTimer = null;
 function showApp() {
   $("loginWrap").style.display = "none";
   $("app").style.display = "block";
-  loadStats(); loadUsers(); loadUsage(); loadTabs(); loadLive();
+  loadStats(); loadUsers(); loadBets(); loadUsage(); loadTabs(); loadLive();
   loadExpiring(); loadActivity(); loadDomains(); loadVersion();
   // auto-refresh della vista live + stats ogni 30s
   if (liveTimer) clearInterval(liveTimer);
@@ -135,6 +135,7 @@ async function loadUsers() {
             : `<button class="btn sm" onclick="activate(${u.id},true)">Attiva</button>`}
           <button class="btn ghost sm" onclick="editGbAccounts(${u.id})">Account GB</button>
           <button class="btn ghost sm" onclick="changePass(${u.id})">Password</button>
+          <button class="btn ghost sm" onclick="viewBets(${u.id},'${esc(u.email)}')">Giocate</button>
           <button class="btn ghost sm" onclick="viewUsage(${u.id},'${esc(u.email)}')">Log</button>
           <button class="btn ghost sm" onclick="viewTimeline(${u.id},'${esc(u.email)}')">Timeline</button>
           <button class="btn ghost sm" onclick="sendMessage(${u.id},'${esc(u.email)}')">Msg</button>
@@ -296,6 +297,93 @@ function renderUsage() {
       <span class="ev ${f.cls}">${esc(f.badge)}</span>
       <span>${esc(f.text)}</span>
     </div>`).join("");
+}
+
+// ───────── storico giocate piazzate ─────────
+let betsData = { bets: [], totali: null };
+let betsUserId = null;
+
+async function loadBets(userId = null) {
+  if (userId !== null) betsUserId = userId;
+  const days = $("betsDays") ? $("betsDays").value : "";
+  const qs = new URLSearchParams();
+  if (betsUserId) qs.set("userId", betsUserId);
+  if (days) qs.set("days", days);
+  const r = await api("/api/admin/bets" + (qs.toString() ? "?" + qs : ""));
+  if (!r.ok) return;
+  betsData = { bets: r.bets || [], totali: r.totali };
+  renderBets();
+}
+function viewBets(userId, email) {
+  loadBets(userId);
+  $("betsTitle").textContent = "🎯 Giocate di " + email;
+  $("betsTitle").scrollIntoView({ behavior: "smooth" });
+}
+function loadAllBets() {
+  betsUserId = null;
+  $("betsTitle").textContent = "🎯 Storico giocate piazzate";
+  loadBets();
+}
+
+// riassunto partite/esiti di una giocata per la riga della tabella
+function betMatch(b) {
+  const sel = b.selezioni || [];
+  if (!sel.length) return { line: "—", sub: "" };
+  const nmeMatch = s => s.partita || [s.firstTeam, s.secondTeam].filter(Boolean).join(" - ")
+    || [s.sport, s.torneo].filter(Boolean).join(" · ") || "partita n.d.";
+  const nmeSel = s => [s.mercato, s.esito].filter(Boolean).join(" → ");
+  if (sel.length === 1) return { line: nmeMatch(sel[0]), sub: nmeSel(sel[0]) };
+  return { line: `Multipla ${sel.length} eventi`, sub: sel.map(nmeMatch).join(" + ") };
+}
+
+function renderBets() {
+  const list = $("betsList");
+  const q = ($("betsSearch")?.value || "").toLowerCase().trim();
+  const money = v => (v == null ? "—" : "€" + (+v).toFixed(2));
+
+  let rows = betsData.bets.map(b => ({ b, m: betMatch(b) }));
+  if (q) rows = rows.filter(({ b, m }) =>
+    (b.email || "").toLowerCase().includes(q) ||
+    m.line.toLowerCase().includes(q) ||
+    m.sub.toLowerCase().includes(q) ||
+    (b.coupon || "").toLowerCase().includes(q));
+
+  // totali ricalcolati sul filtro visibile (così il filtro testo aggiorna i totali)
+  const t = rows.reduce((acc, { b }) => {
+    acc.count++; acc.stake += b.stake || 0;
+    if (b.vincita != null) acc.vincita += b.vincita;
+    return acc;
+  }, { count: 0, stake: 0, vincita: 0 });
+
+  $("betsTotals").innerHTML = `
+    <div class="bt"><div class="v">${t.count}</div><div class="l">giocate piazzate</div></div>
+    <div class="bt"><div class="v blue">${money(t.stake)}</div><div class="l">totale puntato</div></div>
+    <div class="bt"><div class="v green">${money(t.vincita)}</div><div class="l">vincite potenziali</div></div>
+    <div class="bt"><div class="v ${t.vincita - t.stake >= 0 ? "green" : ""}">${money(t.vincita - t.stake)}</div><div class="l">profitto potenziale</div></div>`;
+
+  if (!rows.length) { list.innerHTML = '<div class="empty">Nessuna giocata piazzata' + (q ? " per questo filtro" : "") + '</div>'; return; }
+  list.innerHTML =
+    `<div class="bet-row bet-head">
+       <span>Quando</span><span>Cliente</span><span>Partita / Esito</span>
+       <span class="q">Quota</span><span class="stk">Puntata</span><span class="win">Vincita pot.</span>
+     </div>` +
+    rows.map(({ b, m }) => `
+      <div class="bet-row" title="${esc(b.coupon || "")}">
+        <span class="when">${new Date(b.ts).toLocaleString("it-IT", { hour12: false })}</span>
+        <span class="who">${esc(b.email)}</span>
+        <span class="match">${esc(m.line)}<small>${esc(m.sub)}</small></span>
+        <span class="q">${b.quotaTot != null ? b.quotaTot : "—"}</span>
+        <span class="stk">${money(b.stake)}</span>
+        <span class="win">${money(b.vincita)}</span>
+      </div>`).join("");
+}
+
+function exportBets() {
+  const days = $("betsDays") ? $("betsDays").value : "";
+  const qs = new URLSearchParams({ type: "bets" });
+  if (betsUserId) qs.set("userId", betsUserId);
+  if (days) qs.set("days", days);
+  exportCsvUrl("/api/admin/export?" + qs.toString(), "giocate.csv");
 }
 
 // ───────── tab tracking (storico) ─────────
@@ -474,17 +562,18 @@ async function publishVersion() {
 }
 
 // export CSV (via fetch+blob per poter passare l'header di auth)
-async function exportCsv(type) {
-  const res = await fetch("/api/admin/export?type=" + type, {
-    headers: { "Authorization": "Bearer " + adminToken }
-  });
+async function exportCsvUrl(path, filename) {
+  const res = await fetch(path, { headers: { "Authorization": "Bearer " + adminToken } });
   if (!res.ok) { alert("Errore export"); return; }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = type + ".csv";
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+}
+function exportCsv(type) {
+  return exportCsvUrl("/api/admin/export?type=" + type, type + ".csv");
 }
 
 function esc(s) {

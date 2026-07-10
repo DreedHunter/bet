@@ -238,6 +238,14 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { ok: true, usage: DB.getUsage(uid ? +uid : null) });
       }
 
+      // storico giocate piazzate + totali (puntate e vincite potenziali)
+      if (path === "/api/admin/bets" && method === "GET") {
+        const uid = url.searchParams.get("userId");
+        const days = url.searchParams.get("days");
+        const r = DB.getPlacedBets(uid ? +uid : null, days ? +days : null);
+        return json(res, 200, { ok: true, bets: r.bets, totali: r.totali });
+      }
+
       if (path === "/api/admin/stats" && method === "GET") {
         return json(res, 200, { ok: true, stats: DB.getStats() });
       }
@@ -302,7 +310,12 @@ const server = createServer(async (req, res) => {
       // export CSV
       if (path === "/api/admin/export" && method === "GET") {
         const type = url.searchParams.get("type") || "users";
-        const csv = type === "events" ? DB.exportEventsCsv() : DB.exportUsersCsv();
+        const uid = url.searchParams.get("userId");
+        const days = url.searchParams.get("days");
+        let csv;
+        if (type === "events") csv = DB.exportEventsCsv();
+        else if (type === "bets") csv = DB.exportPlacedBetsCsv(uid ? +uid : null, days ? +days : null);
+        else csv = DB.exportUsersCsv();
         res.writeHead(200, {
           "Content-Type": "text/csv; charset=utf-8",
           "Content-Disposition": `attachment; filename="${type}.csv"`,

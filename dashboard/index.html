@@ -122,6 +122,24 @@
     .dom-track { background: #16264f; border-radius: 5px; height: 12px; overflow: hidden; }
     .dom-fill { height: 100%; background: var(--giallo); border-radius: 5px; }
     .dom-min { color: var(--txt-dim); font-size: 11px; text-align: right; }
+    /* storico giocate piazzate */
+    .bets-totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 4px 0 16px; }
+    .bets-totals .bt { background: var(--blu-soft); border: 1px solid var(--blu-line); border-radius: 10px; padding: 12px; text-align: center; }
+    .bets-totals .bt .v { font-size: 22px; font-weight: 800; color: var(--giallo); }
+    .bets-totals .bt .v.green { color: var(--green); } .bets-totals .bt .v.blue { color: var(--blue2); }
+    .bets-totals .bt .l { font-size: 9px; color: var(--txt-dim); text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+    .bet-row { display: grid; grid-template-columns: 130px 130px 1fr 70px 80px 90px; gap: 8px; align-items: center;
+      padding: 8px 10px; border-bottom: 1px solid #0c1840; font-size: 12px; }
+    .bet-row:hover { background: var(--blu-soft); }
+    .bet-row .who { color: var(--giallo); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bet-row .match { color: #cdd6f4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bet-row .match small { display: block; color: var(--txt-dim); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bet-row .q { text-align: center; color: var(--txt); font-weight: 700; }
+    .bet-row .stk { text-align: right; color: var(--txt); }
+    .bet-row .win { text-align: right; color: var(--green); font-weight: 800; }
+    .bet-row .when { color: var(--txt-dim); font-size: 10px; }
+    .bet-head { font-size: 9px; color: var(--txt-dim); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--blu-line); }
+    .bet-head .stk, .bet-head .win { text-align: right; } .bet-head .q { text-align: center; }
     .tl-row { display: grid; grid-template-columns: 150px 140px 1fr; gap: 8px; padding: 6px 10px;
       border-bottom: 1px solid #0c1840; color: #b9c4e8; font-size: 12px;
       font-family: ui-monospace, Consolas, monospace; }
@@ -192,6 +210,24 @@
         <tbody id="usersBody"></tbody>
       </table>
       <div class="empty" id="usersEmpty" style="display:none">Nessun utente. Creane uno sopra.</div>
+    </div>
+
+    <div class="panel">
+      <h2><span id="betsTitle">🎯 Storico giocate piazzate</span>
+        <button class="btn ghost sm" onclick="loadAllBets()">↻ Tutte</button>
+      </h2>
+      <div class="tabs-filter">
+        <select id="betsDays" onchange="loadBets()" style="width:auto;margin:0">
+          <option value="">Sempre</option>
+          <option value="1">Ultime 24h</option>
+          <option value="7">Ultimi 7 giorni</option>
+          <option value="30">Ultimi 30 giorni</option>
+        </select>
+        <input id="betsSearch" placeholder="Filtra per email, partita, esito…" oninput="renderBets()">
+        <button class="btn ghost sm" onclick="exportBets()" style="white-space:nowrap">⬇️ CSV</button>
+      </div>
+      <div class="bets-totals" id="betsTotals"></div>
+      <div id="betsList"><div class="empty">Caricamento…</div></div>
     </div>
 
     <div class="panel">

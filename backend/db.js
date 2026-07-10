@@ -268,6 +268,75 @@ export function getUsage(userId = null, limit = 200) {
                      ORDER BY u.id DESC LIMIT ?`).all(limit);
 }
 
+// ───────────────────────── storico giocate piazzate ─────────────────────────
+// Estrae dagli eventi "bet" (scommesse piazzate con successo) l'elenco dettagliato
+// + i totali (n° giocate, somma puntate, somma vincite potenziali). Filtrabile per
+// utente e finestra temporale (giorni). Le vincite sono POTENZIALI (quota×puntata),
+// non esiti reali: il plugin non conosce l'esito finale della partita.
+export function getPlacedBets(userId = null, days = null, limit = 500) {
+  const params = [];
+  let where = `u.event = 'bet'`;
+  if (userId) { where += ` AND u.user_id = ?`; params.push(userId); }
+  if (days)   { where += ` AND u.ts >= ?`; params.push(new Date(Date.now() - days * 864e5).toISOString()); }
+  params.push(limit);
+
+  const rows = db.prepare(`
+    SELECT u.id, u.ts, u.detail, us.email
+    FROM usage_log u JOIN users us ON us.id = u.user_id
+    WHERE ${where}
+    ORDER BY u.id DESC LIMIT ?
+  `).all(...params);
+
+  const bets = rows.map(r => {
+    let d = {};
+    try { d = JSON.parse(r.detail || "{}"); } catch {}
+    const stake = +d.stake || 0;
+    const vincita = d.vincita != null ? +d.vincita : null;
+    return {
+      id: r.id, ts: r.ts, email: r.email,
+      stake,
+      quotaTot: d.quotaTot != null ? +d.quotaTot : null,
+      vincita,
+      selezioni: Array.isArray(d.selezioni) ? d.selezioni : [],
+      coupon: d.coupon || null,
+      mock: !!d.mock,
+      retry: d.retry || 0
+    };
+  });
+
+  const totali = bets.reduce((t, b) => {
+    t.count++;
+    t.stake += b.stake;
+    if (b.vincita != null) { t.vincita += b.vincita; t.vincitaCount++; }
+    return t;
+  }, { count: 0, stake: 0, vincita: 0, vincitaCount: 0 });
+  totali.stake = +totali.stake.toFixed(2);
+  totali.vincita = +totali.vincita.toFixed(2);
+  // profitto potenziale = vincite potenziali - puntate (solo sulle giocate con vincita nota)
+  totali.profitto = +(totali.vincita - bets
+    .filter(b => b.vincita != null)
+    .reduce((s, b) => s + b.stake, 0)).toFixed(2);
+
+  return { bets, totali };
+}
+
+// export CSV delle giocate piazzate
+export function exportPlacedBetsCsv(userId = null, days = null) {
+  const { bets } = getPlacedBets(userId, days, 100000);
+  const rows = bets.map(b => ({
+    data: b.ts,
+    email: b.email,
+    partite: b.selezioni.map(s => s.partita || [s.firstTeam, s.secondTeam].filter(Boolean).join(" - ") || "n.d.").join(" + "),
+    esiti: b.selezioni.map(s => [s.mercato, s.esito].filter(Boolean).join(": ")).join(" + "),
+    quota_tot: b.quotaTot ?? "",
+    puntata: b.stake,
+    vincita_potenziale: b.vincita ?? "",
+    coupon: b.coupon || "",
+    mock: b.mock ? "si" : "no"
+  }));
+  return toCsv(rows, ["data", "email", "partite", "esiti", "quota_tot", "puntata", "vincita_potenziale", "coupon", "mock"]);
+}
+
 // ───────────────────────── tab snapshots ─────────────────────────
 export function saveTabSnapshot(userId, tabs = []) {
   const arr = Array.isArray(tabs) ? tabs : [];
