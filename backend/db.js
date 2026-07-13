@@ -147,20 +147,28 @@ const now = () => new Date().toISOString();
 // Idempotente: crea (o allinea) l'utente "a"/"a" con fastbet attivo e
 // l'account "dreedhunter" legato su TUTTI i bookmaker supportati (goldbet,
 // lottomatica, ...). Disattivabile con SEED_TEST_USER=0.
+// garantisce (idempotente) un utente con account bookmaker + fastbet + multibook.
+function ensureSeedUser({ email, pass, gb, note, fastbet = true, multibook = false }) {
+  let u = getUserByEmail(email);
+  if (!u) u = createUser(email, pass, note);
+  else setPassword(u.id, pass);              // riallinea la password
+  setActivation(u.id, "fastbet", !!fastbet, null);
+  setMultibookEnabled(u.id, !!multibook);
+  // lega l'account su ogni bookmaker supportato (idempotente)
+  for (const bk of BOOKMAKERS) {
+    const accounts = getGoldbetAccounts(u.id, bk);
+    if (!accounts.includes(gb)) setGoldbetAccounts(u.id, [...accounts, gb], bk);
+  }
+  console.log(`  👤 Utente garantito: ${email}/${pass} · ${gb} su ${BOOKMAKERS.length} book · multibook ${multibook ? "ON" : "off"}`);
+}
+
 function seedTestUser() {
   if (process.env.SEED_TEST_USER === "0") return;
-  const EMAIL = "a", PASS = "a", GB = "dreedhunter";
   try {
-    let u = getUserByEmail(EMAIL);
-    if (!u) u = createUser(EMAIL, PASS, "utente di test (seed automatico)");
-    else setPassword(u.id, PASS);            // riallinea la password a "a"
-    setActivation(u.id, "fastbet", true, null);
-    // lega dreedhunter su ogni bookmaker supportato (idempotente)
-    for (const bk of BOOKMAKERS) {
-      const accounts = getGoldbetAccounts(u.id, bk);
-      if (!accounts.includes(GB)) setGoldbetAccounts(u.id, [...accounts, GB], bk);
-    }
-    console.log(`  👤 Utente di test garantito: ${EMAIL}/${PASS} · account ${GB} su: ${BOOKMAKERS.join(", ")}`);
+    // "a" — utente di test base (fastbet, multibook off)
+    ensureSeedUser({ email: "a", pass: "a", gb: "dreedhunter", note: "utente di test (seed automatico)" });
+    // "b" — utente attivo con multibook ON (garantito ai deploy / reset volume)
+    ensureSeedUser({ email: "b", pass: "b", gb: "dreedhunter", note: "utente (seed automatico)", multibook: true });
   } catch (e) { console.error("seedTestUser:", e); }
 }
 
