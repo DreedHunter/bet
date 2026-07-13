@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "7.4",
-    "latestFile": "lottomatica-group-v7.4.zip",
+    "latest": "7.5",
+    "latestFile": "lottomatica-group-v7.5.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "7.5",
+        "file": "lottomatica-group-v7.5.zip",
+        "changelog": "Nuove hotkey 'Prossimo Gol 1° Tempo' (Casa/Ospite): mercato ultra-live, piazza SOLO se disponibile e non sospeso, con feedback a schermo. Registrabili nel menu Hotkey.",
+        "date": "2026-07-13T15:20:11.550Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
