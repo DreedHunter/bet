@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "7.3",
-    "latestFile": "lottomatica-group-v7.3.zip",
+    "latest": "7.4",
+    "latestFile": "lottomatica-group-v7.4.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "7.4",
+        "file": "lottomatica-group-v7.4.zip",
+        "changelog": "FIX: le repliche multibook ora vengono sniffate davvero (prima il service worker MV3 le uccideva prima dell'invio). Aggiunta diagnostica in console. Ora vedi papà + figli nella timeline.",
+        "date": "2026-07-13T14:15:07.169Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
