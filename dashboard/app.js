@@ -45,13 +45,13 @@ function showApp(){
 }
 function loadAll(){
   loadStats(); loadUsers(); loadLive(); loadExpiring();
-  loadBets(); loadSniff(); loadUsage(); loadTabs(); loadVersion();
+  loadBets(); loadSniff(); loadDownloads(); loadUsage(); loadTabs(); loadVersion();
 }
 
 // ───────── navigazione ─────────
 const VIEW_TITLES = {
   overview:"Panoramica", users:"Utenti", live:"Chi è online", bets:"Giocate",
-  sniff:"Sniff multibook", usage:"Attività", tabs:"Schede aperte", version:"Versione & Export"
+  sniff:"Sniff multibook", downloads:"Download estensioni", usage:"Attività", tabs:"Schede aperte", version:"Versione & Export"
 };
 function switchView(v){
   document.querySelectorAll(".view").forEach(s => s.classList.toggle("active", s.id === "view-"+v));
@@ -379,6 +379,43 @@ function renderSniff(){
       </div>
     </div>`;
   }).join("");
+}
+
+// ───────── download estensioni ─────────
+async function loadDownloads(){
+  const r = await api("/api/downloads"); if (!r.ok) return;
+  const exts = r.extensions || {};
+  const keys = Object.keys(exts);
+  $("dlEmpty").style.display = keys.length ? "none" : "block";
+  $("dlCards").innerHTML = keys.map(id => {
+    const e = exts[id];
+    const hist = e.history || [];
+    const latest = hist[0] || {};
+    const histRows = hist.map((h, i) => `
+      <div class="dl-row">
+        <span class="rv" style="color:${i===0?"var(--accent)":"var(--muted)"}">v${esc(h.version)}</span>
+        <span class="rc">${esc(h.changelog || "—")}</span>
+        <span class="rd">${esc(fmtDate(h.date))}</span>
+        <button class="btn ghost sm" onclick="downloadExt('${esc(h.file)}')">⬇</button>
+      </div>`).join("");
+    return `<div class="dl-card">
+      <div class="dl-head">
+        <div class="dl-ic">🧩</div>
+        <div class="dl-info"><b>${esc(e.label || id)}</b><small>${esc(e.desc || "")}</small></div>
+        <span class="dl-ver">v${esc(e.latest || "?")}</span>
+        <button class="btn" onclick="downloadExt('${esc(e.latestFile)}')">⬇ Scarica ultima</button>
+      </div>
+      <div class="dl-hist">
+        <div class="dl-hist-title">Archivio versioni</div>
+        ${histRows || '<div class="empty">Nessuna versione</div>'}
+      </div>
+    </div>`;
+  }).join("");
+}
+function downloadExt(file){
+  if (!file){ toast("File non disponibile"); return; }
+  // endpoint pubblico, no auth: apro direttamente il download
+  window.location.href = API + "/api/download/" + encodeURIComponent(file);
 }
 
 // ───────── attività (usage) ─────────

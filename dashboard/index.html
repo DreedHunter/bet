@@ -140,6 +140,21 @@
   .acc-bk-name{width:110px;font-weight:700;flex:0 0 auto;font-size:13px}
   .acc-bk-input{flex:1}
 
+  /* download estensioni */
+  .dl-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
+  .dl-head{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--card2);flex-wrap:wrap}
+  .dl-head .dl-ic{width:42px;height:42px;border-radius:10px;background:var(--accentDim);display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 auto}
+  .dl-head .dl-info{flex:1;min-width:140px}
+  .dl-head .dl-info b{font-size:14px}
+  .dl-head .dl-info small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+  .dl-head .dl-ver{font-family:ui-monospace,monospace;font-weight:700;color:var(--accent);font-size:13px;background:var(--accentDim);padding:4px 10px;border-radius:20px}
+  .dl-hist{padding:6px 16px 12px}
+  .dl-hist-title{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin:8px 0 6px;font-weight:600}
+  .dl-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+  .dl-row:last-child{border:none}
+  .dl-row .rv{font-family:ui-monospace,monospace;font-weight:700;min-width:48px;flex:0 0 auto}
+  .dl-row .rc{flex:1;min-width:0;color:var(--muted);font-size:12.5px}
+  .dl-row .rd{color:var(--muted2);font-size:11px;white-space:nowrap;flex:0 0 auto}
   .verdict{padding:9px 13px;border-radius:var(--rs);margin:8px 0 14px;font-weight:600;font-size:12.5px}
   .verdict.ok{background:var(--greenDim);color:var(--green)}
   .verdict.bad{background:var(--redDim);color:var(--red)}
@@ -204,6 +219,7 @@
         <button data-view="live"><span class="ico">🟢</span>Chi è online<span class="badge-n" id="nOnline">0</span></button>
         <button data-view="bets"><span class="ico">🎯</span>Giocate</button>
         <button data-view="sniff"><span class="ico">🔎</span>Sniff multibook</button>
+        <button data-view="downloads"><span class="ico">⬇️</span>Download estensioni</button>
         <button data-view="usage"><span class="ico">📜</span>Attività</button>
         <button data-view="tabs"><span class="ico">🗂️</span>Schede aperte</button>
         <button data-view="version"><span class="ico">⬆️</span>Versione &amp; Export</button>
@@ -326,6 +342,20 @@
               </div>
               <div id="sniffGroups"></div>
               <div id="sniffEmpty" class="empty" style="display:none">Nessuna cattura. Fai una giocata (o aggiungi al carrello) con l'estensione.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- DOWNLOADS -->
+        <section class="view" id="view-downloads">
+          <div class="panel">
+            <div class="panel-h"><h3>⬇️ Download estensioni</h3>
+              <span class="match" style="margin-left:auto;color:var(--muted);font-size:12px">Ogni scheda: ultima versione + archivio storico con changelog</span>
+              <button class="btn ghost sm" onclick="loadDownloads()">↻</button>
+            </div>
+            <div class="panel-b">
+              <div id="dlCards"></div>
+              <div id="dlEmpty" class="empty" style="display:none">Nessuna estensione pubblicata. Lancia lo script di release.</div>
             </div>
           </div>
         </section>

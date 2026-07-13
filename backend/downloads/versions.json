@@ -1,0 +1,74 @@
+{
+  "lottomatica-group": {
+    "id": "lottomatica-group",
+    "label": "Lottomatica Group Fast Bet",
+    "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+    "latest": "7.0",
+    "latestFile": "lottomatica-group-v7.0.zip",
+    "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "7.0",
+        "file": "lottomatica-group-v7.0.zip",
+        "changelog": "Sniff multi-bookmaker (gbfbSniff), invio catture al backend, allineamento versione 7.0",
+        "date": "2026-07-13T13:09:23.779Z"
+      }
+    ]
+  },
+  "goldbet": {
+    "id": "goldbet",
+    "label": "Goldbet Fast Bet",
+    "desc": "Estensione singola per Goldbet.",
+    "latest": "6.12",
+    "latestFile": "goldbet-v6.12.zip",
+    "history": [
+      {
+        "id": "goldbet",
+        "label": "Goldbet Fast Bet",
+        "desc": "Estensione singola per Goldbet.",
+        "version": "6.12",
+        "file": "goldbet-v6.12.zip",
+        "changelog": "Release v6.12",
+        "date": "2026-07-13T13:04:08.423Z"
+      }
+    ]
+  },
+  "lottomatica": {
+    "id": "lottomatica",
+    "label": "Lottomatica Fast Bet",
+    "desc": "Estensione singola per Lottomatica.",
+    "latest": "6.11",
+    "latestFile": "lottomatica-v6.11.zip",
+    "history": [
+      {
+        "id": "lottomatica",
+        "label": "Lottomatica Fast Bet",
+        "desc": "Estensione singola per Lottomatica.",
+        "version": "6.11",
+        "file": "lottomatica-v6.11.zip",
+        "changelog": "Release v6.11",
+        "date": "2026-07-13T13:04:09.304Z"
+      }
+    ]
+  },
+  "planetwin": {
+    "id": "planetwin",
+    "label": "Planetwin365 Fast Bet",
+    "desc": "Estensione singola per Planetwin365.",
+    "latest": "6.11",
+    "latestFile": "planetwin-v6.11.zip",
+    "history": [
+      {
+        "id": "planetwin",
+        "label": "Planetwin365 Fast Bet",
+        "desc": "Estensione singola per Planetwin365.",
+        "version": "6.11",
+        "file": "planetwin-v6.11.zip",
+        "changelog": "Release v6.11",
+        "date": "2026-07-13T13:04:10.176Z"
+      }
+    ]
+  }
+}

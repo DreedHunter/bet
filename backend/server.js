@@ -14,6 +14,8 @@ const ADMIN_TOKEN = "admin-" + ADMIN_PASSWORD;
 
 // in produzione (Docker) il cwd è /app, in locale è backend/
 const DASHBOARD_DIR = process.env.DASHBOARD_DIR || join(__dirname, "..", "dashboard");
+// archivio ZIP delle estensioni + manifesto versioni (generato da release.mjs)
+const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR || join(__dirname, "downloads");
 
 // ───────────────────────── helpers ─────────────────────────
 function json(res, status, data) {
@@ -388,6 +390,33 @@ const server = createServer(async (req, res) => {
         if (!version) return json(res, 400, { ok: false, error: "version richiesta" });
         const v = DB.setAppVersion(version, changelog || "", downloadUrl || "", !!mandatory);
         return json(res, 200, { ok: true, version: v });
+      }
+    }
+
+    // ═══════════ download estensioni (pubblici, per la dashboard e i link) ═══════════
+    // elenco versioni + changelog dal manifesto generato da release.mjs
+    if (path === "/api/downloads" && method === "GET") {
+      try {
+        const raw = await readFile(join(DOWNLOADS_DIR, "versions.json"), "utf8");
+        return json(res, 200, { ok: true, extensions: JSON.parse(raw) });
+      } catch {
+        return json(res, 200, { ok: true, extensions: {} });  // nessun rilascio ancora
+      }
+    }
+    // scarica un singolo ZIP: /api/download/<file>.zip (solo file .zip, no path traversal)
+    if (path.startsWith("/api/download/") && method === "GET") {
+      const file = decodeURIComponent(path.slice("/api/download/".length));
+      if (!/^[A-Za-z0-9._-]+\.zip$/.test(file)) return json(res, 400, { ok: false, error: "Nome file non valido" });
+      try {
+        const content = await readFile(join(DOWNLOADS_DIR, file));
+        res.writeHead(200, {
+          "Content-Type": "application/zip",
+          "Content-Disposition": `attachment; filename="${file}"`,
+          "Access-Control-Allow-Origin": "*"
+        });
+        return res.end(content);
+      } catch {
+        return json(res, 404, { ok: false, error: "File non trovato" });
       }
     }
 
