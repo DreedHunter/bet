@@ -35,13 +35,16 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
-  -- account Goldbet autorizzati per una licenza (username normalizzati lowercase).
-  -- Il plugin funziona SOLO se l'utente loggato su Goldbet è in questa lista.
+  -- account bookmaker autorizzati per una licenza (username normalizzati lowercase).
+  -- Il plugin funziona SOLO se l'utente loggato sul bookmaker è in questa lista.
+  -- Multi-bookmaker: una licenza può avere account su Goldbet, Lottomatica, ecc.
+  -- (uguali o diversi). La colonna bookmaker distingue la piattaforma.
   CREATE TABLE IF NOT EXISTS goldbet_accounts (
     user_id      INTEGER NOT NULL,
     username     TEXT NOT NULL,
+    bookmaker    TEXT NOT NULL DEFAULT 'goldbet',
     created_at   TEXT NOT NULL,
-    PRIMARY KEY (user_id, username),
+    PRIMARY KEY (user_id, bookmaker, username),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
@@ -109,15 +112,23 @@ db.exec(`
 
 // migrazione soft: aggiunge last_seen_at se il DB è vecchio
 try { db.exec(`ALTER TABLE sessions ADD COLUMN last_seen_at TEXT`); } catch { /* colonna già presente */ }
+// migrazione soft: aggiunge la colonna bookmaker agli account (DB pre-multibookmaker).
+// Gli account esistenti restano 'goldbet' (default), quindi retrocompatibili.
+try { db.exec(`ALTER TABLE goldbet_accounts ADD COLUMN bookmaker TEXT NOT NULL DEFAULT 'goldbet'`); } catch { /* già presente */ }
+// migrazione soft: flag "abilitato al multibook" per utente (default 0 = disattivato).
+// Governa se l'utente può usare la replica di gruppo (piazzare su più bookmaker).
+try { db.exec(`ALTER TABLE users ADD COLUMN multibook_enabled INTEGER NOT NULL DEFAULT 0`); } catch { /* già presente */ }
 
 // prodotto fastbet di default
 db.prepare(`INSERT OR IGNORE INTO products (code, name) VALUES (?, ?)`)
   .run("fastbet", "Goldbet Fast Bet");
 
-// versione iniziale dell'estensione (allineata al manifest corrente)
+// versione iniziale dell'estensione (allineata al manifest corrente: 7.0).
+// NB: INSERT OR IGNORE non aggiorna un DB già esistente con la vecchia 6.9 —
+// per allineare la produzione usare l'endpoint POST /api/admin/version.
 db.prepare(`INSERT OR IGNORE INTO app_version (id, version, changelog, download_url, mandatory, updated_at)
             VALUES (1, ?, ?, ?, 0, ?)`)
-  .run("6.9", "Versione iniziale registrata", "", new Date().toISOString());
+  .run("7.0", "Sniff multibook + dashboard admin", "", new Date().toISOString());
 
 // ───────────────────────── password helpers ─────────────────────────
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
@@ -134,7 +145,8 @@ const now = () => new Date().toISOString();
 
 // ───────── utente di test garantito ad ogni avvio/deploy ─────────
 // Idempotente: crea (o allinea) l'utente "a"/"a" con fastbet attivo e
-// l'account Goldbet "dreedhunter" legato. Disattivabile con SEED_TEST_USER=0.
+// l'account "dreedhunter" legato su TUTTI i bookmaker supportati (goldbet,
+// lottomatica, ...). Disattivabile con SEED_TEST_USER=0.
 function seedTestUser() {
   if (process.env.SEED_TEST_USER === "0") return;
   const EMAIL = "a", PASS = "a", GB = "dreedhunter";
@@ -143,9 +155,12 @@ function seedTestUser() {
     if (!u) u = createUser(EMAIL, PASS, "utente di test (seed automatico)");
     else setPassword(u.id, PASS);            // riallinea la password a "a"
     setActivation(u.id, "fastbet", true, null);
-    const accounts = getGoldbetAccounts(u.id);
-    if (!accounts.includes(GB)) setGoldbetAccounts(u.id, [...accounts, GB]);
-    console.log(`  👤 Utente di test garantito: ${EMAIL}/${PASS} · GB: ${GB}`);
+    // lega dreedhunter su ogni bookmaker supportato (idempotente)
+    for (const bk of BOOKMAKERS) {
+      const accounts = getGoldbetAccounts(u.id, bk);
+      if (!accounts.includes(GB)) setGoldbetAccounts(u.id, [...accounts, GB], bk);
+    }
+    console.log(`  👤 Utente di test garantito: ${EMAIL}/${PASS} · account ${GB} su: ${BOOKMAKERS.join(", ")}`);
   } catch (e) { console.error("seedTestUser:", e); }
 }
 
@@ -174,12 +189,30 @@ export function checkLogin(email, password) {
 }
 
 export function listUsers() {
-  const users = db.prepare(`SELECT id, email, note, created_at FROM users ORDER BY id DESC`).all();
+  const users = db.prepare(`SELECT id, email, note, created_at, multibook_enabled FROM users ORDER BY id DESC`).all();
   // aggiunge lo stato fastbet di ciascuno
   return users.map(u => {
     const act = getActivation(u.id, "fastbet");
-    return { ...u, fastbet_active: act ? !!act.active : false, gb_accounts: getGoldbetAccounts(u.id) };
+    // gb_accounts = compat (solo goldbet); accounts_by_bookmaker = tutti i bookmaker
+    return {
+      ...u,
+      multibook_enabled: !!u.multibook_enabled,
+      fastbet_active: act ? !!act.active : false,
+      fastbet_expires: act ? act.expires_at : null,
+      gb_accounts: getGoldbetAccounts(u.id, "goldbet"),
+      accounts_by_bookmaker: getBookmakerAccounts(u.id)
+    };
   });
+}
+
+// abilita/disabilita il multibook (replica di gruppo) per un utente.
+export function setMultibookEnabled(userId, enabled) {
+  db.prepare(`UPDATE users SET multibook_enabled = ? WHERE id = ?`).run(enabled ? 1 : 0, userId);
+  return isMultibookEnabled(userId);
+}
+export function isMultibookEnabled(userId) {
+  const r = db.prepare(`SELECT multibook_enabled FROM users WHERE id = ?`).get(userId);
+  return !!(r && r.multibook_enabled);
 }
 
 export function deleteUser(id) {
@@ -217,33 +250,52 @@ export function isProductActive(userId, productCode) {
   return true;
 }
 
-// ───────────────────────── account Goldbet ─────────────────────────
+// ───────────────────────── account bookmaker ─────────────────────────
+// Multi-bookmaker: ogni account è legato a una piattaforma (goldbet, lottomatica, ...).
+// Bookmaker supportati (chi non è qui usa comunque 'goldbet' come fallback storico).
+export const BOOKMAKERS = ["goldbet", "lottomatica", "planetwin365"];
 const normGb = (u) => String(u || "").trim().toLowerCase();
+const normBk = (b) => { const v = String(b || "goldbet").trim().toLowerCase(); return v || "goldbet"; };
 
-export function getGoldbetAccounts(userId) {
-  return db.prepare(`SELECT username FROM goldbet_accounts WHERE user_id = ? ORDER BY username`)
-    .all(userId).map(r => r.username);
+// tutti gli account di un utente, raggruppati per bookmaker: { goldbet:[...], lottomatica:[...] }
+export function getBookmakerAccounts(userId) {
+  const rows = db.prepare(
+    `SELECT bookmaker, username FROM goldbet_accounts WHERE user_id = ? ORDER BY bookmaker, username`
+  ).all(userId);
+  const out = {};
+  for (const r of rows) { (out[r.bookmaker] = out[r.bookmaker] || []).push(r.username); }
+  return out;
 }
 
-// sostituisce l'intera lista di account autorizzati per una licenza
-export function setGoldbetAccounts(userId, usernames) {
+// lista account per UN bookmaker specifico
+export function getGoldbetAccounts(userId, bookmaker = "goldbet") {
+  const bk = normBk(bookmaker);
+  return db.prepare(`SELECT username FROM goldbet_accounts WHERE user_id = ? AND bookmaker = ? ORDER BY username`)
+    .all(userId, bk).map(r => r.username);
+}
+
+// sostituisce l'intera lista di account per UN bookmaker (gli altri bookmaker restano intatti)
+export function setGoldbetAccounts(userId, usernames, bookmaker = "goldbet") {
+  const bk = normBk(bookmaker);
   const list = [...new Set((Array.isArray(usernames) ? usernames : []).map(normGb).filter(Boolean))];
   db.exec("BEGIN");
   try {
-    db.prepare(`DELETE FROM goldbet_accounts WHERE user_id = ?`).run(userId);
-    const ins = db.prepare(`INSERT INTO goldbet_accounts (user_id, username, created_at) VALUES (?, ?, ?)`);
-    for (const u of list) ins.run(userId, u, now());
+    db.prepare(`DELETE FROM goldbet_accounts WHERE user_id = ? AND bookmaker = ?`).run(userId, bk);
+    const ins = db.prepare(`INSERT INTO goldbet_accounts (user_id, username, bookmaker, created_at) VALUES (?, ?, ?, ?)`);
+    for (const u of list) ins.run(userId, u, bk, now());
     db.exec("COMMIT");
   } catch (e) { db.exec("ROLLBACK"); throw e; }
-  return getGoldbetAccounts(userId);
+  return getGoldbetAccounts(userId, bk);
 }
 
-// true solo se lo username Goldbet (case-insensitive) è nella lista della licenza.
+// true solo se lo username (case-insensitive) è nella lista di QUEL bookmaker.
 // Lista vuota o username mancante → false: senza legame il plugin non si apre.
-export function isGoldbetAccountAllowed(userId, gbUser) {
+export function isGoldbetAccountAllowed(userId, gbUser, bookmaker = "goldbet") {
   const u = normGb(gbUser);
   if (!u) return false;
-  return !!db.prepare(`SELECT 1 FROM goldbet_accounts WHERE user_id = ? AND username = ?`).get(userId, u);
+  const bk = normBk(bookmaker);
+  return !!db.prepare(`SELECT 1 FROM goldbet_accounts WHERE user_id = ? AND bookmaker = ? AND username = ?`)
+    .get(userId, bk, u);
 }
 
 // ───────────────────────── sessioni ─────────────────────────
@@ -335,6 +387,47 @@ export function getPlacedBets(userId = null, days = null, limit = 500) {
     .reduce((s, b) => s + b.stake, 0)).toFixed(2);
 
   return { bets, totali };
+}
+
+// ───────────────────────── sniff multi-bookmaker ─────────────────────────
+// Estrae gli eventi "sniff" (catture insertBet/checkEventOdd/logger inviate dal
+// plugin). Ogni cattura porta: bookmaker, endpoint, aamsId/evtId/selId/oddsId/markId,
+// partita/mercato/esito, quota, couponCode. Filtrabile per utente e per aamsId
+// (per confrontare la stessa selezione tra bookmaker).
+export function getSniffEvents(userId = null, days = null, aamsId = null, limit = 500) {
+  const params = [];
+  let where = `u.event = 'sniff'`;
+  if (userId) { where += ` AND u.user_id = ?`; params.push(userId); }
+  if (days)   { where += ` AND u.ts >= ?`; params.push(new Date(Date.now() - days * 864e5).toISOString()); }
+  params.push(limit);
+
+  const rows = db.prepare(`
+    SELECT u.id, u.ts, u.detail, us.email
+    FROM usage_log u JOIN users us ON us.id = u.user_id
+    WHERE ${where}
+    ORDER BY u.id DESC LIMIT ?
+  `).all(...params);
+
+  const out = [];
+  for (const r of rows) {
+    let d = {};
+    try { d = JSON.parse(r.detail || "{}"); } catch {}
+    const events = Array.isArray(d.events) ? d.events : [];
+    for (const ev of events) {
+      if (aamsId && String(ev.aamsId) !== String(aamsId)) continue;
+      out.push({
+        id: r.id, ts: r.ts, email: r.email,
+        bookmaker: d.bookmaker || null,
+        endpoint: d.endpoint || null,
+        couponCode: d.couponCode || null,
+        aamsId: ev.aamsId != null ? String(ev.aamsId) : null,
+        evtId: ev.evtId, selId: ev.selId, oddsId: ev.oddsId, markId: ev.markId,
+        oddsValue: ev.oddsValue, isLive: ev.isLive,
+        partita: ev.partita || null, mercato: ev.mercato || null, esito: ev.esito || null
+      });
+    }
+  }
+  return out;
 }
 
 // export CSV delle giocate piazzate

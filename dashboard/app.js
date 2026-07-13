@@ -1,591 +1,481 @@
-// app.js — logica dashboard admin
+// app.js — dashboard admin Fast Bet (responsive, multibook + sniff)
 const API = "";  // stesso host del server
 let adminToken = localStorage.getItem("adminToken") || null;
 
-const $ = (id) => document.getElementById(id);
+const $  = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/'/g,"&#39;").replace(/"/g,"&quot;");
 
-async function api(path, method = "GET", body = null) {
-  const headers = { "Content-Type": "application/json" };
+const BOOKMAKERS = ["goldbet","lottomatica","planetwin365"];
+const BK_LABEL = { goldbet:"Goldbet", lottomatica:"Lottomatica", planetwin365:"Planetwin365" };
+
+async function api(path, method="GET", body=null){
+  const headers = { "Content-Type":"application/json" };
   if (adminToken) headers["Authorization"] = "Bearer " + adminToken;
-  const res = await fetch(API + path, {
-    method, headers, body: body ? JSON.stringify(body) : null
-  });
+  const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : null });
   return res.json();
 }
 
-// ───────── login admin ─────────
-async function adminLogin() {
-  const password = $("adminPass").value;
-  const r = await api("/api/admin/login", "POST", { password });
-  if (r.ok) {
-    adminToken = r.token;
-    localStorage.setItem("adminToken", adminToken);
-    showApp();
-  } else {
-    $("loginErr").textContent = r.error || "Errore";
-  }
-}
-function adminLogout() {
-  adminToken = null;
-  localStorage.removeItem("adminToken");
-  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
-  $("app").style.display = "none";
-  $("loginWrap").style.display = "flex";
-}
-let liveTimer = null;
-function showApp() {
-  $("loginWrap").style.display = "none";
-  $("app").style.display = "block";
-  loadStats(); loadUsers(); loadBets(); loadUsage(); loadTabs(); loadLive();
-  loadExpiring(); loadActivity(); loadDomains(); loadVersion();
-  // auto-refresh della vista live + stats ogni 30s
-  if (liveTimer) clearInterval(liveTimer);
-  liveTimer = setInterval(() => { loadLive(); loadStats(); }, 30000);
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
+// ───────── login ─────────
+async function adminLogin(){
+  const password = $("adminPass").value;
+  const r = await api("/api/admin/login","POST",{ password });
+  if (r.ok){ adminToken = r.token; localStorage.setItem("adminToken", adminToken); showApp(); }
+  else $("loginErr").textContent = r.error || "Errore";
+}
+function adminLogout(){
+  adminToken = null; localStorage.removeItem("adminToken");
+  if (refreshTimer){ clearInterval(refreshTimer); refreshTimer = null; }
+  $("app").style.display = "none"; $("loginWrap").style.display = "flex";
+}
+
+let refreshTimer = null;
+function showApp(){
+  $("loginWrap").style.display = "none";
+  $("app").style.display = "block";
+  switchView("overview");
+  loadAll();
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => { loadLive(); loadStats(); }, 10000);
+}
+function loadAll(){
+  loadStats(); loadUsers(); loadLive(); loadExpiring();
+  loadBets(); loadSniff(); loadUsage(); loadTabs(); loadVersion();
+}
+
+// ───────── navigazione ─────────
+const VIEW_TITLES = {
+  overview:"Panoramica", users:"Utenti", live:"Chi è online", bets:"Giocate",
+  sniff:"Sniff multibook", usage:"Attività", tabs:"Schede aperte", version:"Versione & Export"
+};
+function switchView(v){
+  document.querySelectorAll(".view").forEach(s => s.classList.toggle("active", s.id === "view-"+v));
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  $("viewTitle").textContent = VIEW_TITLES[v] || v;
+  toggleMenu(false);
+}
+document.getElementById("nav").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-view]"); if (b) switchView(b.dataset.view);
+});
+function toggleMenu(force){
+  const sb = $("sidebar"), sc = $("scrim");
+  const open = force === undefined ? !sb.classList.contains("open") : force;
+  sb.classList.toggle("open", open); sc.classList.toggle("show", open);
+}
+
+// ───────── util ─────────
+function relTime(iso){
+  if (!iso) return "mai";
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff/60000);
+  if (m < 1) return "adesso";
+  if (m < 60) return m + " min fa";
+  const h = Math.floor(m/60);
+  if (h < 24) return h + " h fa";
+  return Math.floor(h/24) + " g fa";
+}
+const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}); } catch { return "—"; } };
+const fmtDate = (iso) => { try { return new Date(iso).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); } catch { return "—"; } };
+function bkBadge(bk){ return `<span class="badge bk-${esc(bk)}">${esc(BK_LABEL[bk]||bk)}</span>`; }
+
 // ───────── stats ─────────
-async function loadStats() {
-  const r = await api("/api/admin/stats");
-  if (!r.ok) return;
+async function loadStats(){
+  const r = await api("/api/admin/stats"); if (!r.ok) return;
   const s = r.stats;
   $("stats").innerHTML = `
     <div class="stat"><div class="v">${s.totUsers}</div><div class="l">utenti</div></div>
     <div class="stat"><div class="v green">${s.activeFastbet}</div><div class="l">fastbet attivi</div></div>
     <div class="stat"><div class="v green">${s.online ?? 0}</div><div class="l">online adesso</div></div>
     <div class="stat"><div class="v blue">${s.bets}</div><div class="l">giocate loggate</div></div>`;
+  $("nOnline").textContent = s.online ?? 0;
+  $("onlineNow").textContent = s.online ?? 0;
 }
 
-// ───────── vista live ─────────
-function relTime(iso) {
-  if (!iso) return "mai";
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "adesso";
-  if (m < 60) return m + " min fa";
-  const h = Math.floor(m / 60);
-  if (h < 24) return h + " h fa";
-  return Math.floor(h / 24) + " g fa";
-}
-async function loadLive() {
-  const r = await api("/api/admin/live");
-  if (!r.ok) return;
-  const el = $("liveList");
-  const rows = r.live || [];
-  if (!rows.length) { el.innerHTML = '<div class="empty">Nessun utente attivo</div>'; return; }
-  // online prima, poi per ultimo snapshot
-  rows.sort((a, b) => (b.online - a.online) || (b.last_snapshot > a.last_snapshot ? 1 : -1));
+// ───────── live ─────────
+function renderLiveInto(elId, rows){
+  const el = $(elId); if (!el) return;
+  if (!rows.length){ el.innerHTML = '<div class="empty">Nessun utente attivo</div>'; return; }
+  rows.sort((a,b) => (b.online - a.online) || (String(b.last_snapshot) > String(a.last_snapshot) ? 1 : -1));
   el.innerHTML = rows.map(u => {
     const page = u.active_title || u.active_url || "—";
-    let host = "";
-    try { host = u.active_url ? new URL(u.active_url).hostname : ""; } catch {}
-    return `
-      <div class="live-row">
-        <span class="dot ${u.online ? "on" : ""}" title="${u.online ? "online" : "offline"}"></span>
-        <span class="who">${esc(u.email)}</span>
-        <span class="page">${esc(page)}<small>${esc(host)}</small></span>
-        <span class="cnt">${u.tab_count} tab</span>
-        <span class="seen">${esc(relTime(u.last_seen || u.last_snapshot))}</span>
-      </div>`;
+    let host = ""; try { host = u.active_url ? new URL(u.active_url).hostname : ""; } catch {}
+    return `<div class="live-row">
+      <span class="dot ${u.online ? "on":""}"></span>
+      <span class="who">${esc(u.email)}</span>
+      <span class="page">${esc(page)}<small>${esc(host)}</small></span>
+      <span class="cnt">${u.tab_count} tab</span>
+      <span class="seen">${esc(relTime(u.last_seen || u.last_snapshot))}</span>
+    </div>`;
   }).join("");
+}
+async function loadLive(){
+  const r = await api("/api/admin/live"); if (!r.ok) return;
+  const rows = r.live || [];
+  renderLiveInto("liveList", rows.slice(0,8));
+  renderLiveInto("liveList2", rows);
+}
+
+// ───────── licenze in scadenza ─────────
+async function loadExpiring(){
+  const r = await api("/api/admin/expiring?days=30");
+  const el = $("expiringWrap"); if (!r.ok){ el.innerHTML = '<div class="empty">—</div>'; return; }
+  const rows = r.expiring || [];
+  if (!rows.length){ el.innerHTML = '<div class="empty">Nessuna licenza in scadenza</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Utente</th><th>Scade</th><th>Tra</th></tr></thead><tbody>${
+    rows.map(u => `<tr><td class="email">${esc(u.email)}</td><td>${esc(fmtDate(u.expires_at))}</td>
+      <td>${esc(relTime(u.expires_at).replace(" fa"," "))}</td></tr>`).join("")
+  }</tbody></table>`;
 }
 
 // ───────── utenti ─────────
-let usersCache = {};   // id → utente (per l'editor degli account Goldbet)
-
-async function createUser() {
-  const email = $("nuEmail").value.trim();
-  const password = $("nuPass").value;
-  const note = $("nuNote").value.trim();
-  const gbAccounts = $("nuGb").value.split(",").map(s => s.trim()).filter(Boolean);
-  $("nuErr").textContent = "";
-  if (!email || !password) { $("nuErr").textContent = "Email e password richieste"; return; }
-  const r = await api("/api/admin/users", "POST", { email, password, note });
-  if (r.ok) {
-    if (gbAccounts.length) {
-      await api("/api/admin/goldbet-accounts", "POST", { userId: r.user.id, accounts: gbAccounts });
-    }
-    $("nuEmail").value = ""; $("nuPass").value = ""; $("nuNote").value = ""; $("nuGb").value = "";
-    loadUsers(); loadStats();
-  } else {
-    $("nuErr").textContent = r.error || "Errore";
-  }
+let usersCache = {};
+async function loadUsers(){
+  const r = await api("/api/admin/users"); if (!r.ok) return;
+  usersCache = {}; (r.users||[]).forEach(u => usersCache[u.id] = u);
+  $("nUsers").textContent = (r.users||[]).length;
+  renderUsers();
 }
-
-async function loadUsers() {
-  const r = await api("/api/admin/users");
-  if (!r.ok) return;
-  const users = r.users;
-  usersCache = {};
-  users.forEach(u => { usersCache[u.id] = u; });
-  const body = $("usersBody");
+function renderUsers(){
+  const q = ($("userSearch").value || "").toLowerCase().trim();
+  const users = Object.values(usersCache)
+    .filter(u => !q || u.email.toLowerCase().includes(q) || (u.note||"").toLowerCase().includes(q))
+    .sort((a,b) => b.id - a.id);
   $("usersEmpty").style.display = users.length ? "none" : "block";
-  body.innerHTML = users.map(u => {
-    const gb = u.gb_accounts || [];
-    return `
-    <tr>
-      <td class="email">${esc(u.email)}</td>
-      <td class="gb-list">${gb.length ? gb.map(esc).join(", ") : '<span class="badge warn">NESSUNO — bloccato</span>'}</td>
-      <td>${esc(u.note || "—")}</td>
-      <td>${new Date(u.created_at).toLocaleDateString("it-IT")}</td>
-      <td><span class="badge ${u.fastbet_active ? "on" : "off"}">${u.fastbet_active ? "ATTIVO" : "OFF"}</span></td>
-      <td>
-        <div class="row-actions">
-          ${u.fastbet_active
-            ? `<button class="btn danger sm" onclick="activate(${u.id},false)">Disattiva</button>`
-            : `<button class="btn sm" onclick="activate(${u.id},true)">Attiva</button>`}
-          <button class="btn ghost sm" onclick="editGbAccounts(${u.id})">Account GB</button>
-          <button class="btn ghost sm" onclick="changePass(${u.id})">Password</button>
-          <button class="btn ghost sm" onclick="viewBets(${u.id},'${esc(u.email)}')">Giocate</button>
-          <button class="btn ghost sm" onclick="viewUsage(${u.id},'${esc(u.email)}')">Log</button>
-          <button class="btn ghost sm" onclick="viewTimeline(${u.id},'${esc(u.email)}')">Timeline</button>
-          <button class="btn ghost sm" onclick="sendMessage(${u.id},'${esc(u.email)}')">Msg</button>
-          <button class="btn danger sm" onclick="killUser(${u.id},'${esc(u.email)}')">Disconnetti</button>
-          <button class="btn danger sm" onclick="delUser(${u.id},'${esc(u.email)}')">Elimina</button>
-        </div>
-      </td>
+  $("usersBody").innerHTML = users.map(u => {
+    const byBk = u.accounts_by_bookmaker || {};
+    const accHtml = BOOKMAKERS.filter(b => (byBk[b]||[]).length)
+      .map(b => `${bkBadge(b)} ${(byBk[b]||[]).map(esc).join(", ")}`).join("<br>")
+      || '<span class="badge warn">nessuno — bloccato</span>';
+    const mb = u.multibook_enabled ? '<span class="badge mb">ON</span>' : '<span class="badge off">off</span>';
+    const fb = u.fastbet_active ? '<span class="badge on">ATTIVO</span>' : '<span class="badge off">OFF</span>';
+    return `<tr>
+      <td class="email">${esc(u.email)}${u.note?`<br><small style="color:var(--muted)">${esc(u.note)}</small>`:""}</td>
+      <td style="font-size:12px">${accHtml}</td>
+      <td>${mb}</td>
+      <td>${fb}</td>
+      <td><div class="row-actions">
+        ${u.fastbet_active
+          ? `<button class="btn danger sm" onclick="activate(${u.id},false)">Disatt.</button>`
+          : `<button class="btn sm" onclick="activate(${u.id},true)">Attiva</button>`}
+        <button class="btn ghost sm" onclick="editAccounts(${u.id})">Account</button>
+        <button class="btn ghost sm" onclick="askPassword(${u.id})">Pass</button>
+        <button class="btn ghost sm" onclick="filterSniffByUser(${u.id},'${esc(u.email)}')">Sniff</button>
+        <button class="btn ghost sm" onclick="askMessage(${u.id})">Msg</button>
+        <button class="btn danger sm" onclick="killUser(${u.id},'${esc(u.email)}')">Disc.</button>
+        <button class="btn danger sm" onclick="delUser(${u.id},'${esc(u.email)}')">Elim.</button>
+      </div></td>
     </tr>`;
   }).join("");
 }
 
-// modifica la lista di account Goldbet legati a una licenza
-async function editGbAccounts(userId) {
-  const u = usersCache[userId];
-  if (!u) return;
-  const current = (u.gb_accounts || []).join(", ");
-  const input = prompt(
-    "Account Goldbet autorizzati per " + u.email +
-    "\n(separati da virgola — lista vuota = plugin bloccato):",
-    current
-  );
-  if (input === null) return;
-  const accounts = input.split(",").map(s => s.trim()).filter(Boolean);
-  const r = await api("/api/admin/goldbet-accounts", "POST", { userId, accounts });
-  if (r.ok) loadUsers();
-  else alert(r.error || "Errore");
-}
-
-async function activate(userId, active) {
-  await api("/api/admin/activate", "POST", { userId, active });
-  loadUsers(); loadStats();
-}
-async function delUser(userId, email) {
-  if (!confirm("Eliminare l'utente " + email + "?")) return;
-  await api("/api/admin/delete-user", "POST", { userId });
-  loadUsers(); loadStats();
-}
-async function changePass(userId) {
-  const password = prompt("Nuova password per questo utente:");
-  if (!password) return;
-  await api("/api/admin/set-password", "POST", { userId, password });
-  alert("Password aggiornata");
-}
-
-// ───────── utilizzo ─────────
-// Trasforma un evento grezzo in testo leggibile + classe colore.
-// cls: ok (verde) | bad (rosso) | warn (giallo) | dim (grigio)
-// riassume le selezioni di una scommessa: "Norvegia - Francia (Prossimo Gol 1° T → Casa)"
-// per la multipla concatena con " + ". Ritorna "" se non ci sono dati (client vecchio).
-function selText(d) {
-  const sel = Array.isArray(d.selezioni) ? d.selezioni : [];
-  if (!sel.length) return "";
-  const parts = sel.map(s => {
-    // partita nota → nome; altrimenti ripiega su sport/torneo; ultimo: "partita n.d."
-    let partita = s.partita || [s.firstTeam, s.secondTeam].filter(Boolean).join(" - ");
-    if (!partita) partita = [s.sport, s.torneo].filter(Boolean).join(" · ") || "partita n.d.";
-    const dett = [s.mercato, s.esito].filter(Boolean).join(" → ");
-    return dett ? `${partita} (${dett})` : partita;
-  });
-  return parts.length > 3
-    ? parts.slice(0, 3).join(" + ") + ` + altre ${parts.length - 3}`
-    : parts.join(" + ");
-}
-
-function fmtEvent(event, detailRaw) {
-  let d = {};
-  try { d = typeof detailRaw === "string" ? JSON.parse(detailRaw || "{}") : (detailRaw || {}); } catch {}
-  const money = v => (v == null ? "—" : "€" + (+v).toFixed(2));
-  const gbTxt = d.gbUser ? `account GB "${d.gbUser}"` : null;
-  const quote = Array.isArray(d.quote) && d.quote.length ? d.quote.join(" × ") : null;
-
-  // legacy = client <6.5, non soggetto al vincolo account Goldbet
-  const legacy = d.gbEnforced === false;
-  const vTxt = d.version ? "v" + d.version : (legacy ? "versione <6.5" : null);
-
-  switch (event) {
-    case "login":
-      if (d.active && legacy)
-        return { cls: "ok", badge: "LOGIN OK (legacy)", text: "licenza attiva · " + (vTxt || "client vecchio") + " · senza vincolo account" };
-      if (d.active) return { cls: "ok", badge: "LOGIN OK", text: (gbTxt || "") };
-      if (d.gbAllowed === false && d.gbUser)
-        return { cls: "bad", badge: "ACCESSO NEGATO", text: `account Goldbet "${d.gbUser}" NON autorizzato per questa licenza` };
-      if (d.gbAllowed === false)
-        return { cls: "bad", badge: "ACCESSO NEGATO", text: "nessun account Goldbet rilevato (non loggato su Goldbet o plugin vecchio)" };
-      return { cls: "warn", badge: "LOGIN", text: "licenza non attiva" + (gbTxt ? " · " + gbTxt : "") };
-
-    case "login_fallito":
-      return { cls: "bad", badge: "PASSWORD ERRATA", text: "tentativo di accesso respinto" + (gbTxt ? " · " + gbTxt : "") };
-
-    case "check": {
-      const extra = [gbTxt, vTxt].filter(Boolean).join(" · ");
-      if (d.active && legacy)
-        return { cls: "dim", badge: "check (legacy)", text: "attivo senza vincolo · " + (vTxt || "client vecchio") };
-      if (d.active) return { cls: "dim", badge: "check", text: "attivo" + (extra ? " · " + extra : "") };
-      if (d.gbUser && d.gbAllowed === false)
-        return { cls: "bad", badge: "check BLOCCATO", text: `account Goldbet "${d.gbUser}" non autorizzato` + (vTxt ? " · " + vTxt : "") };
-      if (d.gbAllowed === false)
-        return { cls: "bad", badge: "check BLOCCATO", text: "nessun account Goldbet rilevato" + (vTxt ? " · " + vTxt : "") };
-      return { cls: "warn", badge: "check OFF", text: "licenza non attiva" + (extra ? " · " + extra : "") };
-    }
-
-    case "bet": {
-      const p = [selText(d), "puntata " + money(d.stake)].filter(Boolean);
-      if (quote) p.push("quota " + quote + (d.quotaTot && d.quote.length > 1 ? " = " + d.quotaTot : ""));
-      else if (d.quotaTot) p.push("quota " + d.quotaTot);
-      if (d.vincita != null) p.push("vincita pot. " + money(d.vincita));
-      if (d.coupon) p.push("coupon " + d.coupon);
-      if (d.retry) p.push("piazzata al retry #" + d.retry + " (quota aggiornata)");
-      if (d.totale != null) p.push(d.totale + "ms");
-      p.push(d.mock ? "mock ON" : "mock OFF");
-      return { cls: "ok", badge: "SCOMMESSA ✓", text: p.join(" · ") };
-    }
-
-    case "bet_errore": {
-      const p = [selText(d), "puntata " + money(d.stake)].filter(Boolean);
-      if (quote) p.push("quota " + quote + (d.quotaTot && d.quote.length > 1 ? " = " + d.quotaTot : ""));
-      if (d.vincita != null) p.push("vincita pot. " + money(d.vincita));
-      if (d.code != null) p.push("errore " + d.code);
-      if (d.motivo) p.push(d.motivo);
-      if (d.tentativi) p.push("dopo " + d.tentativi + " retry");
-      return { cls: "bad", badge: "SCOMMESSA ✕", text: p.join(" · ") };
-    }
-
-    case "logout":
-      return { cls: "dim", badge: "logout", text: "sessione chiusa" };
-
-    default:
-      return { cls: "dim", badge: event, text: detailRaw ? String(detailRaw) : "" };
+async function createUser(){
+  const email = $("nuEmail").value.trim();
+  const password = $("nuPass").value;
+  const note = $("nuNote").value.trim();
+  const multibook = $("nuMultibook").checked;
+  $("nuErr").textContent = "";
+  if (!email || !password){ $("nuErr").textContent = "Email e password richieste"; return; }
+  const r = await api("/api/admin/users","POST",{ email, password, note });
+  if (!r.ok){ $("nuErr").textContent = r.error || "Errore"; return; }
+  const uid = r.user.id;
+  // account per bookmaker
+  for (const bk of BOOKMAKERS){
+    const inp = document.querySelector(`input[data-nubk="${bk}"]`);
+    const list = (inp.value||"").split(",").map(s => s.trim()).filter(Boolean);
+    if (list.length) await api("/api/admin/goldbet-accounts","POST",{ userId: uid, accounts: list, bookmaker: bk });
+    inp.value = "";
   }
+  if (multibook) await api("/api/admin/multibook","POST",{ userId: uid, enabled: true });
+  $("nuEmail").value = ""; $("nuPass").value = ""; $("nuNote").value = ""; $("nuMultibook").checked = false;
+  toast("Utente creato"); loadUsers(); loadStats();
 }
 
-let usageRows = [];
-async function loadUsage(userId = null) {
-  const path = userId ? `/api/admin/usage?userId=${userId}` : "/api/admin/usage";
-  const r = await api(path);
-  if (!r.ok) return;
-  usageRows = r.usage || [];
-  if (!userId) $("usageTitle").textContent = "Utilizzo recente";
-  renderUsage();
+async function activate(userId, active){
+  let expiresAt = null;
+  if (active){
+    const d = prompt("Giorni di validità? (vuoto = nessuna scadenza)", "30");
+    if (d === null) return;
+    const n = parseInt(d,10);
+    if (n > 0) expiresAt = new Date(Date.now() + n*864e5).toISOString();
+  }
+  await api("/api/admin/activate","POST",{ userId, active, expiresAt });
+  toast(active ? "Fast Bet attivato" : "Fast Bet disattivato"); loadUsers(); loadStats();
 }
-function viewUsage(userId, email) {
-  loadUsage(userId);
-  $("usageTitle").textContent = "Utilizzo di " + email;
-  $("usageTitle").scrollIntoView({ behavior: "smooth" });
+
+async function delUser(userId, email){
+  if (!confirm(`Eliminare definitivamente ${email}? I suoi dati (account, log) saranno rimossi.`)) return;
+  await api("/api/admin/delete-user","POST",{ userId });
+  toast("Utente eliminato"); loadUsers(); loadStats();
 }
-function renderUsage() {
-  const list = $("usageList");
-  const mode = $("usageFilter") ? $("usageFilter").value : "importanti";
-  const q = ($("usageSearch")?.value || "").toLowerCase().trim();
+async function killUser(userId, email){
+  if (!confirm(`Disconnettere ${email}? Le sue sessioni saranno invalidate subito.`)) return;
+  const r = await api("/api/admin/kill","POST",{ userId });
+  toast(`Disconnesso (${r.killed||0} sessioni)`);
+}
 
-  let rows = usageRows.map(u => ({ u, f: fmtEvent(u.event, u.detail) }));
-  if (mode === "importanti") rows = rows.filter(r => r.u.event !== "check");
-  else if (mode === "bet") rows = rows.filter(r => r.u.event === "bet" || r.u.event === "bet_errore");
-  else if (mode === "accessi") rows = rows.filter(r => ["login", "login_fallito", "logout"].includes(r.u.event));
-  else if (mode === "negati") rows = rows.filter(r => r.f.cls === "bad");
-  if (q) rows = rows.filter(r =>
-    (r.u.email || "").toLowerCase().includes(q) ||
-    r.f.badge.toLowerCase().includes(q) ||
-    r.f.text.toLowerCase().includes(q));
-
-  if (!rows.length) { list.innerHTML = '<div class="empty">Nessun evento per questo filtro</div>'; return; }
-  list.innerHTML = rows.map(({ u, f }) => `
-    <div class="usage-row">
-      <span>${new Date(u.ts).toLocaleString("it-IT", { hour12: false })}</span>
-      <span>${esc(u.email)}</span>
-      <span class="ev ${f.cls}">${esc(f.badge)}</span>
-      <span>${esc(f.text)}</span>
+// ───────── modal account + multibook ─────────
+let accModalUserId = null;
+function editAccounts(userId){
+  const u = usersCache[userId]; if (!u) return;
+  accModalUserId = userId;
+  const byBk = u.accounts_by_bookmaker || {};
+  $("accModalTitle").textContent = "Account — " + u.email;
+  $("accModalBody").innerHTML = BOOKMAKERS.map(bk => `
+    <div class="acc-bk-row">
+      <span class="acc-bk-name">${bkBadge(bk)}</span>
+      <input class="acc-bk-input" data-bk="${bk}" value="${esc((byBk[bk]||[]).join(", "))}" placeholder="username, username2">
     </div>`).join("");
+  $("accMultibook").checked = !!u.multibook_enabled;
+  openModal("accModal");
+}
+async function saveAccModal(){
+  const uid = accModalUserId; if (!uid) return;
+  for (const inp of document.querySelectorAll("#accModalBody input[data-bk]")){
+    const bk = inp.dataset.bk;
+    const list = (inp.value||"").split(",").map(s => s.trim()).filter(Boolean);
+    await api("/api/admin/goldbet-accounts","POST",{ userId: uid, accounts: list, bookmaker: bk });
+  }
+  await api("/api/admin/multibook","POST",{ userId: uid, enabled: $("accMultibook").checked });
+  closeModal("accModal"); toast("Account salvati"); loadUsers();
 }
 
-// ───────── storico giocate piazzate ─────────
-let betsData = { bets: [], totali: null };
-let betsUserId = null;
+// ───────── modal prompt (password / messaggio) ─────────
+function askPassword(userId){
+  openPrompt("Nuova password", "nuova password", async (val) => {
+    if (!val) return;
+    await api("/api/admin/set-password","POST",{ userId, password: val });
+    toast("Password aggiornata");
+  });
+}
+function askMessage(userId){
+  openPrompt("Messaggio all'utente", "testo del messaggio", async (val) => {
+    if (!val) return;
+    await api("/api/admin/command","POST",{ userId, type:"message", payload:{ text: val } });
+    toast("Messaggio inviato");
+  });
+}
+function openPrompt(title, ph, onOk){
+  $("pmTitle").textContent = title; $("pmInput").value = ""; $("pmInput").placeholder = ph;
+  const btn = $("pmOk");
+  btn.onclick = async () => { const v = $("pmInput").value.trim(); closeModal("promptModal"); await onOk(v); };
+  openModal("promptModal"); setTimeout(() => $("pmInput").focus(), 50);
+}
 
-async function loadBets(userId = null) {
-  if (userId !== null) betsUserId = userId;
-  const days = $("betsDays") ? $("betsDays").value : "";
-  const qs = new URLSearchParams();
-  if (betsUserId) qs.set("userId", betsUserId);
-  if (days) qs.set("days", days);
-  const r = await api("/api/admin/bets" + (qs.toString() ? "?" + qs : ""));
-  if (!r.ok) return;
-  betsData = { bets: r.bets || [], totali: r.totali };
+// ───────── giocate ─────────
+let betsCache = [];
+async function loadBets(){
+  const days = $("betDays").value;
+  const r = await api("/api/admin/bets?days=" + (days||"")); if (!r.ok) return;
+  betsCache = r.bets || [];
+  const t = r.totali || {};
+  $("betTotals").innerHTML = `
+    <div class="stat"><div class="v">${t.count||0}</div><div class="l">giocate</div></div>
+    <div class="stat"><div class="v gold">€${(t.stake||0).toFixed(2)}</div><div class="l">puntato</div></div>
+    <div class="stat"><div class="v green">€${(t.vincita||0).toFixed(2)}</div><div class="l">vincita potenziale</div></div>
+    <div class="stat"><div class="v ${(t.profitto||0)>=0?"green":"red"}">€${(t.profitto||0).toFixed(2)}</div><div class="l">profitto pot.</div></div>`;
   renderBets();
 }
-function viewBets(userId, email) {
-  loadBets(userId);
-  $("betsTitle").textContent = "🎯 Giocate di " + email;
-  $("betsTitle").scrollIntoView({ behavior: "smooth" });
-}
-function loadAllBets() {
-  betsUserId = null;
-  $("betsTitle").textContent = "🎯 Storico giocate piazzate";
-  loadBets();
-}
-
-// riassunto partite/esiti di una giocata per la riga della tabella
-function betMatch(b) {
-  const sel = b.selezioni || [];
-  if (!sel.length) return { line: "—", sub: "" };
-  const nmeMatch = s => s.partita || [s.firstTeam, s.secondTeam].filter(Boolean).join(" - ")
-    || [s.sport, s.torneo].filter(Boolean).join(" · ") || "partita n.d.";
-  const nmeSel = s => [s.mercato, s.esito].filter(Boolean).join(" → ");
-  if (sel.length === 1) return { line: nmeMatch(sel[0]), sub: nmeSel(sel[0]) };
-  return { line: `Multipla ${sel.length} eventi`, sub: sel.map(nmeMatch).join(" + ") };
-}
-
-function renderBets() {
-  const list = $("betsList");
-  const q = ($("betsSearch")?.value || "").toLowerCase().trim();
-  const money = v => (v == null ? "—" : "€" + (+v).toFixed(2));
-
-  let rows = betsData.bets.map(b => ({ b, m: betMatch(b) }));
-  if (q) rows = rows.filter(({ b, m }) =>
-    (b.email || "").toLowerCase().includes(q) ||
-    m.line.toLowerCase().includes(q) ||
-    m.sub.toLowerCase().includes(q) ||
-    (b.coupon || "").toLowerCase().includes(q));
-
-  // totali ricalcolati sul filtro visibile (così il filtro testo aggiorna i totali)
-  const t = rows.reduce((acc, { b }) => {
-    acc.count++; acc.stake += b.stake || 0;
-    if (b.vincita != null) acc.vincita += b.vincita;
-    return acc;
-  }, { count: 0, stake: 0, vincita: 0 });
-
-  $("betsTotals").innerHTML = `
-    <div class="bt"><div class="v">${t.count}</div><div class="l">giocate piazzate</div></div>
-    <div class="bt"><div class="v blue">${money(t.stake)}</div><div class="l">totale puntato</div></div>
-    <div class="bt"><div class="v green">${money(t.vincita)}</div><div class="l">vincite potenziali</div></div>
-    <div class="bt"><div class="v ${t.vincita - t.stake >= 0 ? "green" : ""}">${money(t.vincita - t.stake)}</div><div class="l">profitto potenziale</div></div>`;
-
-  if (!rows.length) { list.innerHTML = '<div class="empty">Nessuna giocata piazzata' + (q ? " per questo filtro" : "") + '</div>'; return; }
-  list.innerHTML =
-    `<div class="bet-row bet-head">
-       <span>Quando</span><span>Cliente</span><span>Partita / Esito</span>
-       <span class="q">Quota</span><span class="stk">Puntata</span><span class="win">Vincita pot.</span>
-     </div>` +
-    rows.map(({ b, m }) => `
-      <div class="bet-row" title="${esc(b.coupon || "")}">
-        <span class="when">${new Date(b.ts).toLocaleString("it-IT", { hour12: false })}</span>
-        <span class="who">${esc(b.email)}</span>
-        <span class="match">${esc(m.line)}<small>${esc(m.sub)}</small></span>
-        <span class="q">${b.quotaTot != null ? b.quotaTot : "—"}</span>
-        <span class="stk">${money(b.stake)}</span>
-        <span class="win">${money(b.vincita)}</span>
-      </div>`).join("");
-}
-
-function exportBets() {
-  const days = $("betsDays") ? $("betsDays").value : "";
-  const qs = new URLSearchParams({ type: "bets" });
-  if (betsUserId) qs.set("userId", betsUserId);
-  if (days) qs.set("days", days);
-  exportCsvUrl("/api/admin/export?" + qs.toString(), "giocate.csv");
-}
-
-// ───────── tab tracking (storico) ─────────
-let tabRows = [];
-async function loadTabs(userId = null) {
-  const path = userId ? `/api/admin/tabs?userId=${userId}` : "/api/admin/tabs";
-  const r = await api(path);
-  if (!r.ok) return;
-  tabRows = r.tabs || [];
-  renderTabs();
-}
-function clearTabFilter() {
-  $("tabSearch").value = "";
-  loadTabs();
-}
-function renderTabs() {
-  const el = $("tabsList");
-  const q = ($("tabSearch")?.value || "").toLowerCase().trim();
-  let rows = tabRows;
-  if (q) {
-    rows = tabRows.filter(row => {
-      if ((row.email || "").toLowerCase().includes(q)) return true;
-      return (row.detail || "").toLowerCase().includes(q);
-    });
-  }
-  if (!rows.length) { el.innerHTML = '<div class="empty">Nessuno snapshot' + (q ? " per questo filtro" : " ricevuto ancora") + '</div>'; return; }
-  el.innerHTML = rows.map((row, i) => {
-    let tabs = [];
-    try { const d = typeof row.detail === "string" ? JSON.parse(row.detail) : row.detail; tabs = d?.tabs || []; } catch (e) {}
-    const activeTab = tabs.find(t => t.active);
-    const preview = activeTab ? activeTab.title || activeTab.url : (tabs[0]?.url || "—");
-    return `
-      <div class="tab-snapshot">
-        <div class="tab-snapshot-header" onclick="toggleSnapshot(${i})">
-          <span class="ts">${new Date(row.ts).toLocaleString("it-IT", { hour12: false })}</span>
-          <span class="who">${esc(row.email)}</span>
-          <span class="cnt">${tabs.length} tab &nbsp;·&nbsp; ${esc(preview.slice(0, 60))}</span>
-        </div>
-        <div class="tab-snapshot-body" id="snap-${i}">
-          ${tabs.map(t => `
-            <div class="tab-row">
-              <span class="active-dot">${t.active ? "●" : ""}</span>
-              <div>
-                <div>${esc(t.title || "(no title)")}</div>
-                <div class="url">${esc(t.url)}</div>
-              </div>
-            </div>`).join("")}
-        </div>
-      </div>`;
-  }).join("");
-}
-function toggleSnapshot(i) {
-  const el = document.getElementById("snap-" + i);
-  if (el) el.classList.toggle("open");
-}
-
-// ───────── controllo remoto ─────────
-async function killUser(userId, email) {
-  if (!confirm("Disconnettere subito " + email + "? La sua sessione verrà invalidata.")) return;
-  const r = await api("/api/admin/kill", "POST", { userId });
-  if (r.ok) { alert("Disconnesso (" + (r.killed || 0) + " sessioni chiuse)"); loadLive(); loadStats(); }
-  else alert(r.error || "Errore");
-}
-async function sendMessage(userId, email) {
-  const text = prompt("Messaggio da mostrare a " + email + ":");
-  if (!text) return;
-  const r = await api("/api/admin/command", "POST", { userId, type: "message", payload: { text } });
-  alert(r.ok ? "Messaggio accodato — arriverà al prossimo check (entro ~1 min)" : (r.error || "Errore"));
-}
-
-// ───────── timeline utente ─────────
-async function viewTimeline(userId, email) {
-  const r = await api(`/api/admin/timeline?userId=${userId}`);
-  if (!r.ok) return;
-  const rows = r.timeline || [];
-  const dom = () => rows.map(e => {
-    let f;
-    if (e.kind === "tabs") {
-      let d = {}; try { d = JSON.parse(e.detail || "{}"); } catch {}
-      f = { cls: "dim", badge: "tabs", text: (d.count != null ? d.count + " tab · " : "") + (d.title || d.url || "") };
-    } else {
-      f = fmtEvent(e.kind, e.detail);
-    }
-    return `
-    <div class="tl-row">
-      <span>${new Date(e.ts).toLocaleString("it-IT", { hour12: false })}</span>
-      <span class="ev ${f.cls}">${esc(f.badge)}</span>
-      <span>${esc(f.text)}</span>
-    </div>`;
-  }).join("");
-  $("timelineTitle").textContent = "Timeline di " + email;
-  $("timelineList").innerHTML = rows.length ? dom() : '<div class="empty">Nessun evento</div>';
-  $("timelinePanel").style.display = "block";
-  $("timelinePanel").scrollIntoView({ behavior: "smooth" });
-}
-
-// ───────── analitiche ─────────
-async function loadExpiring() {
-  const r = await api("/api/admin/expiring?days=30");
-  if (!r.ok) return;
-  const rows = r.expiring || [];
-  const el = $("expiringList");
-  if (!rows.length) { el.innerHTML = '<div class="empty">Nessuna licenza con scadenza nei prossimi 30 giorni</div>'; return; }
-  el.innerHTML = rows.map(u => {
-    const cls = u.expired ? "off" : (u.days_left <= 3 ? "warn" : "on");
-    const label = u.expired ? "SCADUTA" : (u.days_left + "g");
-    return `<div class="exp-row">
-      <span class="who">${esc(u.email)}</span>
-      <span>${new Date(u.expires_at).toLocaleDateString("it-IT")}</span>
-      <span class="badge ${cls}">${label}</span>
-      ${!u.active ? '<span class="badge off">OFF</span>' : ''}
-    </div>`;
-  }).join("");
-}
-
-async function loadActivity() {
-  const r = await api("/api/admin/analytics/activity?days=30");
-  if (!r.ok) return;
-  // DAU
-  const daily = r.daily || [];
-  const maxU = Math.max(1, ...daily.map(d => d.users));
-  $("dauChart").innerHTML = daily.length ? daily.map(d => `
-    <div class="bar" title="${d.day}: ${d.users} utenti, ${d.events} eventi">
-      <div class="bar-fill" style="height:${Math.round(d.users / maxU * 100)}%"></div>
-      <div class="bar-lbl">${d.day.slice(5)}</div>
-    </div>`).join("") : '<div class="empty">Nessun dato</div>';
-  // heatmap oraria
-  const hourly = r.hourly || [];
-  const maxH = Math.max(1, ...hourly.map(h => h.events));
-  $("hourChart").innerHTML = hourly.map(h => {
-    const intensity = h.events / maxH;
-    const bg = intensity === 0 ? "#16264f" : `rgba(255,204,0,${0.15 + intensity * 0.85})`;
-    return `<div class="cell" style="background:${bg}" title="${h.hour}:00 — ${h.events} eventi">${h.hour}</div>`;
-  }).join("");
-}
-
-async function loadDomains() {
-  const r = await api("/api/admin/analytics/domains?days=7");
-  if (!r.ok) return;
-  const rows = (r.domains || []).slice(0, 12);
-  const el = $("domainsList");
-  if (!rows.length) { el.innerHTML = '<div class="empty">Nessun dato di navigazione</div>'; return; }
-  const max = Math.max(1, ...rows.map(d => d.minutes));
-  el.innerHTML = rows.map(d => `
-    <div class="dom-row">
-      <span class="dom-host">${esc(d.host)}</span>
-      <div class="dom-track"><div class="dom-fill" style="width:${Math.round(d.minutes / max * 100)}%"></div></div>
-      <span class="dom-min">~${d.minutes} min</span>
-    </div>`).join("");
-}
-
-// ───────── versione estensione ─────────
-async function loadVersion() {
-  const r = await api("/api/admin/version");
-  if (!r.ok) return;
-  const v = r.version || {};
-  $("verCurrent").textContent = "Attuale pubblicata: v" + (v.version || "—") +
-    (v.updated_at ? " (" + new Date(v.updated_at).toLocaleDateString("it-IT") + ")" : "");
-  if (!$("verNum").value) $("verNum").value = "";
-  $("verUrl").value = v.download_url || "";
-  $("verLog").value = v.changelog || "";
-  $("verMand").checked = !!v.mandatory;
-}
-async function publishVersion() {
-  $("verErr").textContent = "";
-  const version = $("verNum").value.trim();
-  if (!version) { $("verErr").textContent = "Numero versione richiesto (es. 6.5)"; return; }
-  const r = await api("/api/admin/version", "POST", {
-    version,
-    changelog: $("verLog").value.trim(),
-    downloadUrl: $("verUrl").value.trim(),
-    mandatory: $("verMand").checked
+function renderBets(){
+  const q = ($("betSearch").value||"").toLowerCase().trim();
+  const rows = betsCache.filter(b => {
+    if (!q) return true;
+    const txt = (b.email + " " + (b.selezioni||[]).map(s => `${s.partita} ${s.mercato} ${s.esito}`).join(" ")).toLowerCase();
+    return txt.includes(q);
   });
-  if (r.ok) { $("verErr").style.color = "var(--green)"; $("verErr").textContent = "Pubblicata v" + version; loadVersion(); }
-  else { $("verErr").style.color = ""; $("verErr").textContent = r.error || "Errore"; }
+  $("betsEmpty").style.display = rows.length ? "none" : "block";
+  $("betsBody").innerHTML = rows.map(b => {
+    const sel = (b.selezioni||[]).map(s =>
+      `${esc(s.partita || [s.firstTeam,s.secondTeam].filter(Boolean).join(" - ") || "n.d.")} <span style="color:var(--muted)">→ ${esc([s.mercato,s.esito].filter(Boolean).join(": "))}</span>`
+    ).join("<br>") || "—";
+    return `<tr>
+      <td>${esc(fmtTime(b.ts))}</td>
+      <td class="email">${esc(b.email)}</td>
+      <td style="font-size:12px">${sel}</td>
+      <td class="mono">${b.quotaTot ?? "—"}</td>
+      <td>€${(b.stake||0).toFixed(2)}</td>
+      <td class="green">${b.vincita!=null?"€"+b.vincita.toFixed(2):"—"}</td>
+      <td class="mono" style="font-size:11px">${esc(b.coupon||"—")}</td>
+      <td>${b.mock?'<span class="badge mb">mock</span>':'<span class="badge off">no</span>'}</td>
+    </tr>`;
+  }).join("");
 }
 
-// export CSV (via fetch+blob per poter passare l'header di auth)
-async function exportCsvUrl(path, filename) {
-  const res = await fetch(path, { headers: { "Authorization": "Bearer " + adminToken } });
-  if (!res.ok) { alert("Errore export"); return; }
+// ───────── SNIFF ─────────
+let sniffCache = [];
+let sniffUserFilter = null;
+function filterSniffByUser(userId, email){
+  sniffUserFilter = userId;
+  $("sniffSearch").value = "";
+  switchView("sniff");
+  toast("Sniff filtrato: " + email);
+  loadSniff();
+}
+async function loadSniff(){
+  const days = $("sniffDays").value;
+  let path = "/api/admin/sniff?days=" + (days||"");
+  if (sniffUserFilter) path += "&userId=" + sniffUserFilter;
+  const r = await api(path); if (!r.ok) return;
+  sniffCache = r.sniff || [];
+  renderSniff();
+}
+function renderSniff(){
+  const q = ($("sniffSearch").value||"").toLowerCase().trim();
+  const rows = sniffCache.filter(e => {
+    if (!q) return true;
+    return ((e.partita||"") + " " + (e.aamsId||"")).toLowerCase().includes(q);
+  });
+  // raggruppa per aamsId
+  const byAams = {};
+  for (const e of rows){ const k = e.aamsId || "(no-aams)"; (byAams[k] = byAams[k] || []).push(e); }
+  const keys = Object.keys(byAams);
+  $("sniffEmpty").style.display = keys.length ? "none" : "block";
+  $("sniffGroups").innerHTML = keys.map(aams => {
+    const list = byAams[aams];
+    // una riga per bookmaker (la più recente cattura per bookmaker)
+    const perBk = {};
+    for (const e of list){ if (!perBk[e.bookmaker] || e.ts > perBk[e.bookmaker].ts) perBk[e.bookmaker] = e; }
+    const bks = Object.keys(perBk);
+    const partita = list.find(e => e.partita)?.partita || "";
+    const mercato = list.find(e => e.mercato)?.mercato || "";
+    const esito   = list.find(e => e.esito)?.esito || "";
+    // verdetto: evtId/selId identici tra bookmaker?
+    let verdict = "";
+    if (bks.length > 1){
+      const evt = new Set(bks.map(b => perBk[b].evtId));
+      const sel = new Set(bks.map(b => perBk[b].selId));
+      const ok = evt.size === 1 && sel.size === 1;
+      verdict = `<div class="verdict ${ok?"ok":"bad"}">${ok
+        ? "✅ evtId e selId IDENTICI su tutti — replica senza traduzione"
+        : "❌ evtId/selId DIVERSI — serve traduzione via aamsId"}</div>`;
+    }
+    const rowsHtml = bks.map(b => {
+      const e = perBk[b];
+      return `<tr>
+        <td>${bkBadge(b)}</td>
+        <td class="mono">${e.evtId ?? "—"}</td>
+        <td class="mono">${e.selId ?? "—"}</td>
+        <td class="mono">${e.oddsId ?? "—"}</td>
+        <td class="mono">${e.markId ?? "—"}</td>
+        <td class="mono">${e.oddsValue ?? "—"}</td>
+        <td style="color:var(--muted);font-size:11px">${esc(e.email)}</td>
+      </tr>`;
+    }).join("");
+    return `<div class="sniff-group">
+      <div class="sniff-group-h">
+        <span class="aams">${esc(aams)}</span>
+        <span class="match">${esc(partita)} ${mercato?`· ${esc(mercato)}`:""} ${esito?`→ ${esc(esito)}`:""}</span>
+        <span class="match" style="margin-left:auto">${bks.length} book</span>
+      </div>
+      <div style="padding:10px 14px">${verdict}
+        <div class="tbl-wrap"><table style="min-width:600px">
+          <thead><tr><th>Bookmaker</th><th>evtId</th><th>selId</th><th>oddsId</th><th>markId</th><th>quota</th><th>utente</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table></div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ───────── attività (usage) ─────────
+let usageCache = [];
+let usageFilter = "all";
+async function loadUsage(){
+  const r = await api("/api/admin/usage"); if (!r.ok) return;
+  usageCache = r.usage || [];
+  renderUsage();
+}
+function renderUsage(){
+  const rows = usageCache.filter(u => {
+    if (usageFilter === "all") return true;
+    if (usageFilter === "err") return u.event === "bet_errore" || u.event === "login_fallito";
+    if (usageFilter === "login") return u.event === "login" || u.event === "login_fallito";
+    return u.event === usageFilter;
+  });
+  $("usageEmpty").style.display = rows.length ? "none" : "block";
+  $("usageBody").innerHTML = rows.map(u => {
+    let detail = "";
+    try {
+      const d = JSON.parse(u.detail || "{}");
+      if (u.event === "sniff") detail = `${d.bookmaker||""} · ${d.endpoint||""} · ${(d.events||[]).map(e=>e.partita).filter(Boolean)[0]||""}`;
+      else if (u.event === "bet") detail = `€${d.stake||0} · ${(d.selezioni||[]).map(s=>s.esito).filter(Boolean).join(", ")}`;
+      else if (u.event === "bet_errore") detail = `${d.motivo||d.code||""}`;
+      else detail = Object.entries(d).slice(0,3).map(([k,v]) => `${k}:${typeof v==="object"?"…":v}`).join(" · ");
+    } catch {}
+    const col = u.event.includes("errore")||u.event.includes("fallito") ? "var(--red)"
+      : u.event === "bet" ? "var(--green)" : u.event === "sniff" ? "var(--blue)" : "var(--muted)";
+    return `<tr>
+      <td>${esc(fmtDate(u.ts))}</td>
+      <td class="email">${esc(u.email)}</td>
+      <td><span style="color:${col};font-weight:600">${esc(u.event)}</span></td>
+      <td style="color:var(--muted);font-size:12px">${esc(detail)}</td>
+    </tr>`;
+  }).join("");
+}
+$("usageChips").addEventListener("click", (e) => {
+  const c = e.target.closest(".chip"); if (!c) return;
+  document.querySelectorAll("#usageChips .chip").forEach(x => x.classList.remove("active"));
+  c.classList.add("active"); usageFilter = c.dataset.f; renderUsage();
+});
+
+// ───────── schede aperte ─────────
+async function loadTabs(){
+  const r = await api("/api/admin/tabs"); if (!r.ok) return;
+  const rows = r.tabs || [];
+  $("tabsEmpty").style.display = rows.length ? "none" : "block";
+  $("tabsBody").innerHTML = rows.map(t => {
+    let host = ""; try { host = t.active_url ? new URL(t.active_url).hostname : ""; } catch {}
+    return `<tr>
+      <td>${esc(fmtDate(t.ts))}</td>
+      <td class="email">${esc(t.email)}</td>
+      <td>${esc(t.active_title || t.active_url || "—")}<br><small style="color:var(--muted)">${esc(host)}</small></td>
+      <td>${t.tab_count}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ───────── versione ─────────
+async function loadVersion(){
+  const r = await api("/api/admin/version"); if (!r.ok) return;
+  const v = r.version || {};
+  $("vCurrent").textContent = `${v.version||"—"} ${v.mandatory?"(obbligatorio)":""}`;
+  if (v.version) $("vVersion").value = v.version;
+  if (v.download_url) $("vUrl").value = v.download_url;
+  if (v.changelog) $("vChangelog").value = v.changelog;
+  $("vMandatory").checked = !!v.mandatory;
+}
+async function publishVersion(){
+  const version = $("vVersion").value.trim();
+  if (!version){ toast("Versione richiesta"); return; }
+  const r = await api("/api/admin/version","POST",{
+    version, changelog: $("vChangelog").value.trim(),
+    downloadUrl: $("vUrl").value.trim(), mandatory: $("vMandatory").checked
+  });
+  if (r.ok){ $("vMsg").textContent = "Pubblicata ✓"; setTimeout(()=>$("vMsg").textContent="",2500); loadVersion(); }
+  else toast(r.error || "Errore");
+}
+
+// ───────── export CSV ─────────
+async function exportCsv(type){
+  const headers = {}; if (adminToken) headers["Authorization"] = "Bearer " + adminToken;
+  let path = "/api/admin/export?type=" + type;
+  if (type === "bets"){ const d = $("betDays") ? $("betDays").value : ""; if (d) path += "&days=" + d; }
+  const res = await fetch(API + path, { headers });
+  if (!res.ok){ toast("Export fallito"); return; }
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-}
-function exportCsv(type) {
-  return exportCsvUrl("/api/admin/export?type=" + type, type + ".csv");
+  a.href = URL.createObjectURL(blob);
+  a.download = `fastbet-${type}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
 }
 
-function esc(s) {
-  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/'/g, "&#39;");
-}
+// ───────── modal helpers ─────────
+function openModal(id){ $(id).classList.add("open"); }
+function closeModal(id){ $(id).classList.remove("open"); }
 
 // auto-login se già autenticato
 if (adminToken) showApp();

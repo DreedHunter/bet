@@ -20,6 +20,7 @@
   // ───────────────────────── licenza ─────────────────────────
   const API_BASE   = "https://bet-production-b260.up.railway.app";
   const APP_VERSION = "6.9";  // ⚠️ bumpare INSIEME al manifest.json a ogni release
+  const BOOKMAKER  = "goldbet";  // piattaforma per il sistema licenze
   const LS_TOKEN   = "gbfb_token";
   const LS_EMAIL   = "gbfb_email";
   let licToken     = null;
@@ -57,7 +58,7 @@
   async function apiLogin(email, password) {
     const r = await fetch(API_BASE + "/api/login", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, gbUser, version: APP_VERSION })
+      body: JSON.stringify({ email, password, gbUser, version: APP_VERSION, bookmaker: BOOKMAKER })
     });
     return r.json();
   }
@@ -65,7 +66,7 @@
     try {
       const r = await fetch(API_BASE + "/api/check", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, version: APP_VERSION, gbUser })
+        body: JSON.stringify({ token, version: APP_VERSION, gbUser, bookmaker: BOOKMAKER })
       });
       return r.json();
     } catch (e) { return { ok: false, offline: true }; }

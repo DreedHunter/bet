@@ -122,7 +122,8 @@ const server = createServer(async (req, res) => {
       if (!rateLimit("login:" + clientIp(req), 10, 60_000))
         return json(res, 429, { ok: false, error: "Troppi tentativi, riprova tra un minuto" });
       const body = await readBody(req);
-      const { email, password, gbUser, version } = body;
+      const { email, password, gbUser, version, bookmaker } = body;
+      const bk = (bookmaker || "goldbet").toLowerCase();
       const user = DB.checkLogin(email || "", password || "");
       if (!user) {
         // se l'email esiste, registra il tentativo fallito (password sbagliata)
@@ -134,11 +135,11 @@ const server = createServer(async (req, res) => {
       const licenseActive = DB.isProductActive(user.id, "fastbet");
       const enforce = gbEnforced(body);
       // client <6.5: vincolo non applicato → gb_allowed = true (comportamento legacy)
-      const gbAllowed = enforce ? DB.isGoldbetAccountAllowed(user.id, gbUser) : true;
+      const gbAllowed = enforce ? DB.isGoldbetAccountAllowed(user.id, gbUser, bk) : true;
       const active = licenseActive && gbAllowed;
       const token = DB.createSession(user.id);
       DB.logUsage(user.id, "fastbet", "login",
-        { active, gbUser: gbUser || null, gbAllowed, version: version || null, gbEnforced: enforce });
+        { active, gbUser: gbUser || null, gbAllowed, bookmaker: bk, version: version || null, gbEnforced: enforce });
       return json(res, 200, {
         ok: true, token, email: user.email,
         active, license_active: licenseActive, gb_allowed: gbAllowed
@@ -148,18 +149,19 @@ const server = createServer(async (req, res) => {
     // il plugin verifica periodicamente se è ancora attivo (e ritira i comandi remoti)
     if (path === "/api/check" && method === "POST") {
       const body = await readBody(req);
-      const { token, version, gbUser } = body;
+      const { token, version, gbUser, bookmaker } = body;
+      const bk = (bookmaker || "goldbet").toLowerCase();
       const sess = DB.getSession(token || "");
       if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
       DB.touchSession(token);
       const licenseActive = DB.isProductActive(sess.user_id, "fastbet");
       const enforce = gbEnforced(body);
       // client <6.5: vincolo non applicato → gb_allowed = true (comportamento legacy)
-      const gbAllowed = enforce ? DB.isGoldbetAccountAllowed(sess.user_id, gbUser) : true;
+      const gbAllowed = enforce ? DB.isGoldbetAccountAllowed(sess.user_id, gbUser, bk) : true;
       const active = licenseActive && gbAllowed;
       const commands = DB.popCommands(sess.user_id);
       DB.logUsage(sess.user_id, "fastbet", "check",
-        { active, gbUser: gbUser || null, gbAllowed, version: version || null, gbEnforced: enforce });
+        { active, gbUser: gbUser || null, gbAllowed, bookmaker: bk, version: version || null, gbEnforced: enforce });
       // info aggiornamento se il client ha mandato la sua versione
       let update = null;
       if (version) {
@@ -222,19 +224,29 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { ok: true, user: { id: u.id, email: u.email } });
       }
 
-      // ── account Goldbet legati a una licenza ──
+      // ── account bookmaker legati a una licenza (multi-bookmaker) ──
+      // GET ?userId=&bookmaker=  → lista account di quel bookmaker (default goldbet).
+      // Senza bookmaker → tutti gli account raggruppati per bookmaker + lista bookmaker supportati.
       if (path === "/api/admin/goldbet-accounts" && method === "GET") {
         const uid = url.searchParams.get("userId");
         if (!uid) return json(res, 400, { ok: false, error: "userId richiesto" });
-        return json(res, 200, { ok: true, accounts: DB.getGoldbetAccounts(+uid) });
+        const bk = url.searchParams.get("bookmaker");
+        if (bk) return json(res, 200, { ok: true, bookmaker: bk, accounts: DB.getGoldbetAccounts(+uid, bk) });
+        return json(res, 200, {
+          ok: true,
+          byBookmaker: DB.getBookmakerAccounts(+uid),
+          bookmakers: DB.BOOKMAKERS,
+          accounts: DB.getGoldbetAccounts(+uid, "goldbet")   // compat: lista goldbet
+        });
       }
 
-      // sostituisce la lista completa: { userId, accounts: ["pippo", "pluto"] }
+      // sostituisce la lista di UN bookmaker: { userId, accounts:[...], bookmaker:"lottomatica" }
+      // bookmaker assente → "goldbet" (retrocompatibile con la dashboard vecchia).
       if (path === "/api/admin/goldbet-accounts" && method === "POST") {
-        const { userId, accounts } = await readBody(req);
+        const { userId, accounts, bookmaker } = await readBody(req);
         if (!userId) return json(res, 400, { ok: false, error: "userId richiesto" });
-        const list = DB.setGoldbetAccounts(userId, accounts || []);
-        return json(res, 200, { ok: true, accounts: list });
+        const list = DB.setGoldbetAccounts(userId, accounts || [], bookmaker || "goldbet");
+        return json(res, 200, { ok: true, bookmaker: (bookmaker || "goldbet"), accounts: list });
       }
 
       // attiva/disattiva fastbet per un utente
@@ -242,6 +254,14 @@ const server = createServer(async (req, res) => {
         const { userId, active, expiresAt } = await readBody(req);
         DB.setActivation(userId, "fastbet", !!active, expiresAt || null);
         return json(res, 200, { ok: true });
+      }
+
+      // abilita/disabilita il multibook (replica di gruppo) per un utente
+      if (path === "/api/admin/multibook" && method === "POST") {
+        const { userId, enabled } = await readBody(req);
+        if (!userId) return json(res, 400, { ok: false, error: "userId richiesto" });
+        const state = DB.setMultibookEnabled(userId, !!enabled);
+        return json(res, 200, { ok: true, multibook_enabled: state });
       }
 
       if (path === "/api/admin/delete-user" && method === "POST") {
@@ -272,6 +292,17 @@ const server = createServer(async (req, res) => {
 
       if (path === "/api/admin/stats" && method === "GET") {
         return json(res, 200, { ok: true, stats: DB.getStats() });
+      }
+
+      // catture sniff multi-bookmaker (per account); ?userId=&days=&aamsId=
+      if (path === "/api/admin/sniff" && method === "GET") {
+        const uid = url.searchParams.get("userId");
+        const days = url.searchParams.get("days");
+        const aamsId = url.searchParams.get("aamsId");
+        return json(res, 200, {
+          ok: true,
+          sniff: DB.getSniffEvents(uid ? +uid : null, days ? +days : null, aamsId || null)
+        });
       }
 
       // snapshot tab per utente (storico)
