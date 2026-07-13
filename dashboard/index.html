@@ -164,8 +164,10 @@
   .sniff-group-h .match{color:var(--muted);font-size:12px}
   .papa-row{background:var(--accentDim)}
   .papa-row td{font-weight:600}
-  .ms-bar{height:5px;background:var(--border);border-radius:3px;margin-top:3px;overflow:hidden;max-width:120px}
-  .ms-bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+  /* timeline sincronizzata: track = da T0 al completamento più tardivo */
+  .tl-track{height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:4px;position:relative}
+  .tl-fill{display:block;height:100%;background:var(--blue);border-radius:5px}
+  .tl-fill.papa{background:var(--accent)}
 
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border2);color:var(--txt);padding:12px 20px;border-radius:var(--rs);z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:13px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1;bottom:30px}
@@ -341,8 +343,8 @@
             </div>
             <div class="panel-b">
               <div class="empty" id="sniffHint" style="text-align:left;padding:0 0 10px;color:var(--muted)">
-                Cronologia per <b>giocata</b>: ogni gruppo è una giocata col suo <b>👑 papà</b> (il book dove hai
-                piazzato) e le <b>repliche</b> sugli altri, con il <b>tempo di insertBet</b> in ms per ciascuno.
+                <b>Timeline sincronizzata</b>: ogni giocata parte dal <b>👑 papà</b> (T0). Per ogni book vedi
+                quando parte rispetto a T0 (offset) e quanto dura l'insertBet — così capisci chi parte prima e chi è più veloce.
               </div>
               <div id="sniffGroups"></div>
               <div id="sniffEmpty" class="empty" style="display:none">Nessuna cattura. Fai una giocata (o aggiungi al carrello) con l'estensione.</div>

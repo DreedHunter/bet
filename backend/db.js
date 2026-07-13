@@ -433,6 +433,8 @@ export function getSniffEvents(userId = null, days = null, aamsId = null, limit 
         betId: d.betId || null,      // lega papà + repliche della stessa giocata
         ms: d.ms != null ? d.ms : null,   // durata insertBet (ms)
         role: d.role || null,        // "papa" | "replica"
+        t0Abs: d.t0Abs != null ? d.t0Abs : null,           // zero comune timeline (epoch ms)
+        startOffset: d.startOffset != null ? d.startOffset : null,  // partenza rispetto a T0
         aamsId: ev.aamsId != null ? String(ev.aamsId) : null,
         evtId: ev.evtId, selId: ev.selId, oddsId: ev.oddsId, markId: ev.markId,
         oddsValue: ev.oddsValue, isLive: ev.isLive,

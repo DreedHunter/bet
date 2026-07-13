@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "7.2",
-    "latestFile": "lottomatica-group-v7.2.zip",
+    "latest": "7.3",
+    "latestFile": "lottomatica-group-v7.3.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "7.3",
+        "file": "lottomatica-group-v7.3.zip",
+        "changelog": "Timeline sincronizzata nello sniff: dal T0 del papà vedi quando parte ogni book (offset) e quanto dura l'insertBet, per confrontare la latenza dei server. Nascosti logger/checkEventOdd dalla cronologia.",
+        "date": "2026-07-13T14:00:39.239Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",

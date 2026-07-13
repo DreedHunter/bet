@@ -325,15 +325,16 @@ async function loadSniff(){
 }
 function renderSniff(){
   const q = ($("sniffSearch").value||"").toLowerCase().trim();
+  // Solo le catture di GIOCATA (papà + repliche). logger/checkEventOdd sono
+  // telemetria/pre-check del sito: le nascondo dalla cronologia (rumore).
   const rows = sniffCache.filter(e => {
+    if (e.role !== "papa" && e.role !== "replica" && e.endpoint !== "insertBet") return false;
     if (!q) return true;
     return ((e.partita||"") + " " + (e.aamsId||"") + " " + (e.bookmaker||"")).toLowerCase().includes(q);
   });
-  // CRONOLOGIA PER GIOCATA: raggruppo per betId (il "papà" + le sue repliche).
-  // Le catture vecchie senza betId ricadono in un gruppo per id singolo (fallback),
-  // così restano visibili senza mescolarsi.
+  // TIMELINE PER GIOCATA: raggruppo per betId (papà + repliche).
   const groups = {};
-  const order = [];  // mantiene l'ordine di apparizione (più recente prima)
+  const order = [];
   for (const e of rows){
     const key = e.betId || ("solo-" + e.id);
     if (!groups[key]){ groups[key] = []; order.push(key); }
@@ -341,40 +342,52 @@ function renderSniff(){
   }
   $("sniffEmpty").style.display = order.length ? "none" : "block";
 
-  // priorità di ruolo per l'ordinamento interno: papà prima, poi repliche
-  const roleRank = (e) => e.role === "papa" ? 0 : e.role === "replica" ? 1 : 2;
+  const roleRank = (e) => e.role === "papa" ? 0 : 1;
   const outcomeCell = (e) => {
     if (e.role === "papa" || e.endpoint === "insertBet")
       return e.couponCode ? `<span class="badge on">piazzata</span>` : `<span class="badge off">no coupon</span>`;
-    if (e.endpoint === "replica")
-      return e.replicaOk ? `<span class="badge on">replica ✓</span>`
-        : `<span class="badge off" title="${esc(e.replicaReason||"")}">replica ✗</span>`;
-    return `<span style="color:var(--muted);font-size:11px">${esc(e.endpoint||"—")}</span>`;
+    return e.replicaOk ? `<span class="badge on">replica ✓</span>`
+      : `<span class="badge off" title="${esc(e.replicaReason||"")}">replica ✗</span>`;
   };
 
   $("sniffGroups").innerHTML = order.map(key => {
-    const list = groups[key].slice().sort((a,b) => roleRank(a) - roleRank(b) || a.ts.localeCompare(b.ts));
+    const list = groups[key].slice().sort((a,b) => roleRank(a) - roleRank(b) || (a.startOffset||0) - (b.startOffset||0));
     const papa = list.find(e => e.role === "papa") || list[0];
     const partita = list.find(e => e.partita)?.partita || "";
     const mercato = list.find(e => e.mercato)?.mercato || "";
     const esito   = list.find(e => e.esito)?.esito || "";
-    const when = fmtDate(papa.ts);
-    const msMax = Math.max(...list.map(e => e.ms || 0));
+    // T0 assoluto della giocata (istante di partenza del papà)
+    const t0 = papa.t0Abs || new Date(papa.ts).getTime();
+    const when = new Date(t0).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    // scala della timeline: dal via (0) al completamento più tardivo (offset+durata)
+    const spanMax = Math.max(1, ...list.map(e => (e.startOffset||0) + (e.ms||0)));
 
     const rowsHtml = list.map(e => {
       const isPapa = e.role === "papa";
-      const msBar = e.ms != null
-        ? `<span class="mono">${e.ms}ms</span>` + (msMax ? `<div class="ms-bar"><i style="width:${Math.round((e.ms/msMax)*100)}%"></i></div>` : "")
-        : "—";
+      const off = e.startOffset != null ? e.startOffset : 0;
+      const dur = e.ms != null ? e.ms : 0;
+      // barra timeline: margine sinistro = offset di partenza, larghezza = durata
+      const leftPct  = Math.round((off / spanMax) * 100);
+      const widthPct = Math.max(2, Math.round((dur / spanMax) * 100));
+      const endMs = off + dur;
+      const bar = e.ms != null
+        ? `<div class="tl-track"><i class="tl-fill ${isPapa?"papa":""}" style="margin-left:${leftPct}%;width:${widthPct}%"></i></div>`
+        : `<div class="tl-track"></div>`;
+      const timing = e.ms != null
+        ? `<span class="mono">${dur}ms</span>${off>0?` <span style="color:var(--muted)">(parte +${off}ms → finisce +${endMs}ms)</span>`:` <span style="color:var(--muted)">(via)</span>`}`
+        : `<span style="color:var(--muted)">—</span>`;
       return `<tr class="${isPapa?"papa-row":""}">
         <td>${isPapa?"👑 ":""}${bkBadge(e.bookmaker)}</td>
         <td>${outcomeCell(e)}</td>
-        <td>${msBar}</td>
-        <td class="mono">${e.evtId ?? "—"}</td>
+        <td style="min-width:220px">${bar}${timing}</td>
         <td class="mono">${e.oddsValue ?? "—"}</td>
-        <td style="color:var(--muted);font-size:11px">${esc(fmtTime(e.ts))}</td>
       </tr>`;
     }).join("");
+
+    // sintesi: chi è il più veloce a completare (offset+durata minimo)
+    const done = list.filter(e => e.ms != null).map(e => ({ bk: e.bookmaker, end: (e.startOffset||0)+(e.ms||0) }));
+    done.sort((a,b) => a.end - b.end);
+    const fastest = done[0] ? `più veloce a completare: <b>${esc(BK_LABEL[done[0].bk]||done[0].bk)}</b> a +${done[0].end}ms` : "";
 
     return `<div class="sniff-group">
       <div class="sniff-group-h">
@@ -383,8 +396,9 @@ function renderSniff(){
         <span class="match" style="margin-left:auto">${when} · ${list.length} book</span>
       </div>
       <div style="padding:10px 14px">
+        <div style="color:var(--muted);font-size:12px;margin-bottom:8px">T0 = partenza del papà 👑. ${fastest}</div>
         <div class="tbl-wrap"><table style="min-width:560px">
-          <thead><tr><th>Bookmaker</th><th>Esito</th><th>Tempo insertBet</th><th>evtId</th><th>quota</th><th>ora</th></tr></thead>
+          <thead><tr><th>Bookmaker</th><th>Esito</th><th>Timeline (da T0 del papà)</th><th>quota</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table></div>
       </div>
