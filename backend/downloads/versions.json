@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "7.0",
-    "latestFile": "lottomatica-group-v7.0.zip",
+    "latest": "7.1",
+    "latestFile": "lottomatica-group-v7.1.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "7.1",
+        "file": "lottomatica-group-v7.1.zip",
+        "changelog": "Sniff repliche multibook: piazzando su un book, la dashboard registra anche gli esiti sugli altri bookmaker (replica ✓/✗)",
+        "date": "2026-07-13T13:25:06.795Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
