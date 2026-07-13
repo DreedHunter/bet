@@ -327,62 +327,64 @@ function renderSniff(){
   const q = ($("sniffSearch").value||"").toLowerCase().trim();
   const rows = sniffCache.filter(e => {
     if (!q) return true;
-    return ((e.partita||"") + " " + (e.aamsId||"")).toLowerCase().includes(q);
+    return ((e.partita||"") + " " + (e.aamsId||"") + " " + (e.bookmaker||"")).toLowerCase().includes(q);
   });
-  // raggruppa per aamsId
-  const byAams = {};
-  for (const e of rows){ const k = e.aamsId || "(no-aams)"; (byAams[k] = byAams[k] || []).push(e); }
-  const keys = Object.keys(byAams);
-  $("sniffEmpty").style.display = keys.length ? "none" : "block";
-  $("sniffGroups").innerHTML = keys.map(aams => {
-    const list = byAams[aams];
-    // una riga per bookmaker (la più recente cattura per bookmaker)
-    const perBk = {};
-    for (const e of list){ if (!perBk[e.bookmaker] || e.ts > perBk[e.bookmaker].ts) perBk[e.bookmaker] = e; }
-    const bks = Object.keys(perBk);
+  // CRONOLOGIA PER GIOCATA: raggruppo per betId (il "papà" + le sue repliche).
+  // Le catture vecchie senza betId ricadono in un gruppo per id singolo (fallback),
+  // così restano visibili senza mescolarsi.
+  const groups = {};
+  const order = [];  // mantiene l'ordine di apparizione (più recente prima)
+  for (const e of rows){
+    const key = e.betId || ("solo-" + e.id);
+    if (!groups[key]){ groups[key] = []; order.push(key); }
+    groups[key].push(e);
+  }
+  $("sniffEmpty").style.display = order.length ? "none" : "block";
+
+  // priorità di ruolo per l'ordinamento interno: papà prima, poi repliche
+  const roleRank = (e) => e.role === "papa" ? 0 : e.role === "replica" ? 1 : 2;
+  const outcomeCell = (e) => {
+    if (e.role === "papa" || e.endpoint === "insertBet")
+      return e.couponCode ? `<span class="badge on">piazzata</span>` : `<span class="badge off">no coupon</span>`;
+    if (e.endpoint === "replica")
+      return e.replicaOk ? `<span class="badge on">replica ✓</span>`
+        : `<span class="badge off" title="${esc(e.replicaReason||"")}">replica ✗</span>`;
+    return `<span style="color:var(--muted);font-size:11px">${esc(e.endpoint||"—")}</span>`;
+  };
+
+  $("sniffGroups").innerHTML = order.map(key => {
+    const list = groups[key].slice().sort((a,b) => roleRank(a) - roleRank(b) || a.ts.localeCompare(b.ts));
+    const papa = list.find(e => e.role === "papa") || list[0];
     const partita = list.find(e => e.partita)?.partita || "";
     const mercato = list.find(e => e.mercato)?.mercato || "";
     const esito   = list.find(e => e.esito)?.esito || "";
-    // verdetto: evtId/selId identici tra bookmaker?
-    let verdict = "";
-    if (bks.length > 1){
-      const evt = new Set(bks.map(b => perBk[b].evtId));
-      const sel = new Set(bks.map(b => perBk[b].selId));
-      const ok = evt.size === 1 && sel.size === 1;
-      verdict = `<div class="verdict ${ok?"ok":"bad"}">${ok
-        ? "✅ evtId e selId IDENTICI su tutti — replica senza traduzione"
-        : "❌ evtId/selId DIVERSI — serve traduzione via aamsId"}</div>`;
-    }
-    const rowsHtml = bks.map(b => {
-      const e = perBk[b];
-      // esito: se è una cattura di replica, mostro ok/errore; altrimenti l'endpoint
-      let outcome;
-      if (e.endpoint === "replica") {
-        outcome = e.replicaOk
-          ? `<span class="badge on">replica ✓</span>`
-          : `<span class="badge off" title="${esc(e.replicaReason||"")}">replica ✗</span>`;
-      } else {
-        outcome = `<span style="color:var(--muted);font-size:11px">${esc(e.endpoint||"—")}</span>`;
-      }
-      return `<tr>
-        <td>${bkBadge(b)}</td>
-        <td>${outcome}</td>
+    const when = fmtDate(papa.ts);
+    const msMax = Math.max(...list.map(e => e.ms || 0));
+
+    const rowsHtml = list.map(e => {
+      const isPapa = e.role === "papa";
+      const msBar = e.ms != null
+        ? `<span class="mono">${e.ms}ms</span>` + (msMax ? `<div class="ms-bar"><i style="width:${Math.round((e.ms/msMax)*100)}%"></i></div>` : "")
+        : "—";
+      return `<tr class="${isPapa?"papa-row":""}">
+        <td>${isPapa?"👑 ":""}${bkBadge(e.bookmaker)}</td>
+        <td>${outcomeCell(e)}</td>
+        <td>${msBar}</td>
         <td class="mono">${e.evtId ?? "—"}</td>
-        <td class="mono">${e.selId ?? "—"}</td>
-        <td class="mono">${e.oddsId ?? "—"}</td>
         <td class="mono">${e.oddsValue ?? "—"}</td>
-        <td style="color:var(--muted);font-size:11px">${esc(e.email)}</td>
+        <td style="color:var(--muted);font-size:11px">${esc(fmtTime(e.ts))}</td>
       </tr>`;
     }).join("");
+
     return `<div class="sniff-group">
       <div class="sniff-group-h">
-        <span class="aams">${esc(aams)}</span>
-        <span class="match">${esc(partita)} ${mercato?`· ${esc(mercato)}`:""} ${esito?`→ ${esc(esito)}`:""}</span>
-        <span class="match" style="margin-left:auto">${bks.length} book</span>
+        <span class="aams">${esc(partita || "giocata")}</span>
+        <span class="match">${mercato?`${esc(mercato)} `:""}${esito?`→ ${esc(esito)}`:""}</span>
+        <span class="match" style="margin-left:auto">${when} · ${list.length} book</span>
       </div>
-      <div style="padding:10px 14px">${verdict}
-        <div class="tbl-wrap"><table style="min-width:640px">
-          <thead><tr><th>Bookmaker</th><th>Esito</th><th>evtId</th><th>selId</th><th>oddsId</th><th>quota</th><th>utente</th></tr></thead>
+      <div style="padding:10px 14px">
+        <div class="tbl-wrap"><table style="min-width:560px">
+          <thead><tr><th>Bookmaker</th><th>Esito</th><th>Tempo insertBet</th><th>evtId</th><th>quota</th><th>ora</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table></div>
       </div>

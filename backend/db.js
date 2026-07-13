@@ -430,6 +430,9 @@ export function getSniffEvents(userId = null, days = null, aamsId = null, limit 
         couponCode: d.couponCode || null,
         replicaOk: d.replicaOk != null ? !!d.replicaOk : null,   // solo endpoint "replica"
         replicaReason: d.replicaReason || null,
+        betId: d.betId || null,      // lega papà + repliche della stessa giocata
+        ms: d.ms != null ? d.ms : null,   // durata insertBet (ms)
+        role: d.role || null,        // "papa" | "replica"
         aamsId: ev.aamsId != null ? String(ev.aamsId) : null,
         evtId: ev.evtId, selId: ev.selId, oddsId: ev.oddsId, markId: ev.markId,
         oddsValue: ev.oddsValue, isLive: ev.isLive,
