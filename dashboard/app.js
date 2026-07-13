@@ -355,12 +355,21 @@ function renderSniff(){
     }
     const rowsHtml = bks.map(b => {
       const e = perBk[b];
+      // esito: se è una cattura di replica, mostro ok/errore; altrimenti l'endpoint
+      let outcome;
+      if (e.endpoint === "replica") {
+        outcome = e.replicaOk
+          ? `<span class="badge on">replica ✓</span>`
+          : `<span class="badge off" title="${esc(e.replicaReason||"")}">replica ✗</span>`;
+      } else {
+        outcome = `<span style="color:var(--muted);font-size:11px">${esc(e.endpoint||"—")}</span>`;
+      }
       return `<tr>
         <td>${bkBadge(b)}</td>
+        <td>${outcome}</td>
         <td class="mono">${e.evtId ?? "—"}</td>
         <td class="mono">${e.selId ?? "—"}</td>
         <td class="mono">${e.oddsId ?? "—"}</td>
-        <td class="mono">${e.markId ?? "—"}</td>
         <td class="mono">${e.oddsValue ?? "—"}</td>
         <td style="color:var(--muted);font-size:11px">${esc(e.email)}</td>
       </tr>`;
@@ -372,8 +381,8 @@ function renderSniff(){
         <span class="match" style="margin-left:auto">${bks.length} book</span>
       </div>
       <div style="padding:10px 14px">${verdict}
-        <div class="tbl-wrap"><table style="min-width:600px">
-          <thead><tr><th>Bookmaker</th><th>evtId</th><th>selId</th><th>oddsId</th><th>markId</th><th>quota</th><th>utente</th></tr></thead>
+        <div class="tbl-wrap"><table style="min-width:640px">
+          <thead><tr><th>Bookmaker</th><th>Esito</th><th>evtId</th><th>selId</th><th>oddsId</th><th>quota</th><th>utente</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table></div>
       </div>

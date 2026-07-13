@@ -428,6 +428,8 @@ export function getSniffEvents(userId = null, days = null, aamsId = null, limit 
         bookmaker: d.bookmaker || null,
         endpoint: d.endpoint || null,
         couponCode: d.couponCode || null,
+        replicaOk: d.replicaOk != null ? !!d.replicaOk : null,   // solo endpoint "replica"
+        replicaReason: d.replicaReason || null,
         aamsId: ev.aamsId != null ? String(ev.aamsId) : null,
         evtId: ev.evtId, selId: ev.selId, oddsId: ev.oddsId, markId: ev.markId,
         oddsValue: ev.oddsValue, isLive: ev.isLive,
