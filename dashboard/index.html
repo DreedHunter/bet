@@ -457,6 +457,35 @@
   </div>
 </div>
 
+<!-- MODAL import account extra (multi-account da TXT) -->
+<div class="modal" id="importModal">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-h"><h3 id="importModalTitle">Import account extra</h3><button class="x" onclick="closeModal('importModal')">×</button></div>
+    <div class="modal-b">
+      <p style="color:var(--muted);font-size:12px;margin-bottom:10px">
+        Un account per riga, formato <b class="mono">user:password:provider</b> — provider: <b>G</b>=Goldbet, <b>L</b>=Lottomatica, <b>P</b>=Planetwin365.
+        La password può contenere <span class="mono">:</span> (viene presa tra il primo e l'ultimo <span class="mono">:</span>). Righe con <span class="mono">#</span> ignorate.
+      </p>
+      <div class="field" style="margin-bottom:8px">
+        <input type="file" id="importFile" accept=".txt" style="font-size:12px">
+      </div>
+      <div class="field">
+        <textarea id="importTxt" rows="8" placeholder="mario:pass123:G&#10;luca:pw:L&#10;anna:secret:P" style="width:100%;font-family:ui-monospace,monospace;font-size:12px;resize:vertical;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:var(--rs);padding:10px"></textarea>
+      </div>
+      <div id="importResult" style="font-size:12px"></div>
+      <div class="panel-b flush tbl-wrap" style="margin-top:10px;max-height:200px;overflow:auto">
+        <table><thead><tr><th>Bookmaker</th><th>Username</th><th>Password</th><th></th></tr></thead>
+          <tbody id="importListBody"></tbody></table>
+        <div id="importListEmpty" class="empty" style="display:none">Nessun account importato per questo utente</div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeModal('importModal')">Chiudi</button>
+      <button class="btn" onclick="doImportAccounts()">Importa</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL generico (password/msg) -->
 <div class="modal" id="promptModal">
   <div class="modal-card" style="max-width:400px">

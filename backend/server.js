@@ -172,8 +172,12 @@ const server = createServer(async (req, res) => {
           update = { latest: v.version, changelog: v.changelog, download_url: v.download_url, mandatory: !!v.mandatory };
         }
       }
+      // account extra (multi-account) importati per questo utente: l'estensione li
+      // ritira e fa i login lei (Akamai lato browser). Solo se ce ne sono.
+      const extraAccounts = DB.getExtraAccounts(sess.user_id);
       return json(res, 200, {
-        ok: true, active, license_active: licenseActive, gb_allowed: gbAllowed, commands, update
+        ok: true, active, license_active: licenseActive, gb_allowed: gbAllowed, commands, update,
+        extra_accounts: extraAccounts
       });
     }
 
@@ -264,6 +268,27 @@ const server = createServer(async (req, res) => {
         if (!userId) return json(res, 400, { ok: false, error: "userId richiesto" });
         const state = DB.setMultibookEnabled(userId, !!enabled);
         return json(res, 200, { ok: true, multibook_enabled: state });
+      }
+
+      // ── account extra (multi-account): import da TXT, lista, elimina ──
+      // import: body { userId, txt } con righe "user:psw:G/L/P". Ritorna importati + errori.
+      if (path === "/api/admin/extra-accounts/import" && method === "POST") {
+        const { userId, txt } = await readBody(req);
+        if (!userId || !txt) return json(res, 400, { ok: false, error: "userId e txt richiesti" });
+        const { accounts, errors } = DB.parseAccountsTxt(txt);
+        const imported = DB.importExtraAccounts(userId, accounts);
+        return json(res, 200, { ok: true, imported, parsed: accounts.length, errors });
+      }
+      if (path === "/api/admin/extra-accounts" && method === "GET") {
+        const uid = url.searchParams.get("userId");
+        if (!uid) return json(res, 400, { ok: false, error: "userId richiesto" });
+        return json(res, 200, { ok: true, accounts: DB.getExtraAccounts(+uid) });
+      }
+      if (path === "/api/admin/extra-accounts/delete" && method === "POST") {
+        const { userId, bookmaker, username } = await readBody(req);
+        if (!userId || !bookmaker || !username) return json(res, 400, { ok: false, error: "userId, bookmaker, username richiesti" });
+        const removed = DB.deleteExtraAccount(userId, bookmaker, username);
+        return json(res, 200, { ok: true, removed });
       }
 
       if (path === "/api/admin/delete-user" && method === "POST") {

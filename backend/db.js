@@ -102,6 +102,19 @@ db.exec(`
     updated_at  TEXT NOT NULL
   );
 
+  -- account extra multi-account (importati da TXT in dashboard per una licenza).
+  -- L'estensione dell'utente li RITIRA al check e fa i login via API (Akamai lato
+  -- browser). Password IN CHIARO (scelta: server privato monoutente).
+  CREATE TABLE IF NOT EXISTS extra_accounts (
+    user_id     INTEGER NOT NULL,
+    bookmaker   TEXT NOT NULL,            -- goldbet | lottomatica | planetwin365
+    username    TEXT NOT NULL,
+    password    TEXT NOT NULL,            -- in chiaro
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (user_id, bookmaker, username),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_usage_user_ts   ON usage_log(user_id, id DESC);
   CREATE INDEX IF NOT EXISTS idx_usage_event     ON usage_log(event);
   CREATE INDEX IF NOT EXISTS idx_sessions_user   ON sessions(user_id);
@@ -304,6 +317,74 @@ export function isGoldbetAccountAllowed(userId, gbUser, bookmaker = "goldbet") {
   const bk = normBk(bookmaker);
   return !!db.prepare(`SELECT 1 FROM goldbet_accounts WHERE user_id = ? AND bookmaker = ? AND username = ?`)
     .get(userId, bk, u);
+}
+
+// ───────────────────────── account extra (multi-account) ─────────────────────────
+// Provider abbreviato → bookmaker. Accetta G/L/P (e i nomi estesi).
+const PROVIDER_MAP = {
+  g: "goldbet", goldbet: "goldbet",
+  l: "lottomatica", lottomatica: "lottomatica",
+  p: "planetwin365", planetwin: "planetwin365", planetwin365: "planetwin365"
+};
+export function providerToBookmaker(p) {
+  return PROVIDER_MAP[String(p || "").trim().toLowerCase()] || null;
+}
+
+// parsa un TXT "user:psw:provider" (una riga per account). Ritorna
+// { accounts:[{bookmaker,username,password}], errors:[{line,reason}] }.
+// Il separatore è ":" ma la password può contenere ":" → splittiamo sul PRIMO
+// e sull'ULTIMO ":" (username = prima, provider = dopo l'ultimo, password = in mezzo).
+export function parseAccountsTxt(txt) {
+  const accounts = [], errors = [];
+  const lines = String(txt || "").split(/\r?\n/);
+  lines.forEach((raw, idx) => {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return;   // vuota o commento
+    const first = line.indexOf(":");
+    const last = line.lastIndexOf(":");
+    if (first === -1 || first === last) {
+      errors.push({ line: idx + 1, reason: "formato: serve user:psw:provider" }); return;
+    }
+    const username = line.slice(0, first).trim();
+    const password = line.slice(first + 1, last);   // NON trim: la password può avere spazi
+    const prov = line.slice(last + 1).trim();
+    const bookmaker = providerToBookmaker(prov);
+    if (!username || !password) { errors.push({ line: idx + 1, reason: "username o password mancante" }); return; }
+    if (!bookmaker) { errors.push({ line: idx + 1, reason: "provider non valido: '" + prov + "' (usa G/L/P)" }); return; }
+    accounts.push({ bookmaker, username, password });
+  });
+  return { accounts, errors };
+}
+
+// importa account per un utente (upsert per bookmaker+username). Ritorna il n° importati.
+export function importExtraAccounts(userId, accounts) {
+  let n = 0;
+  const ins = db.prepare(`INSERT INTO extra_accounts (user_id, bookmaker, username, password, created_at)
+                          VALUES (?, ?, ?, ?, ?)
+                          ON CONFLICT(user_id, bookmaker, username)
+                          DO UPDATE SET password = excluded.password`);
+  db.exec("BEGIN");
+  try {
+    for (const a of (accounts || [])) {
+      if (!a || !a.bookmaker || !a.username || !a.password) continue;
+      ins.run(userId, a.bookmaker, a.username, a.password, now());
+      n++;
+    }
+    db.exec("COMMIT");
+  } catch (e) { db.exec("ROLLBACK"); throw e; }
+  return n;
+}
+
+export function getExtraAccounts(userId) {
+  return db.prepare(`SELECT bookmaker, username, password, created_at
+                     FROM extra_accounts WHERE user_id = ? ORDER BY bookmaker, username`).all(userId);
+}
+export function deleteExtraAccount(userId, bookmaker, username) {
+  return db.prepare(`DELETE FROM extra_accounts WHERE user_id = ? AND bookmaker = ? AND username = ?`)
+    .run(userId, bookmaker, username).changes;
+}
+export function countExtraAccounts(userId) {
+  return db.prepare(`SELECT COUNT(*) c FROM extra_accounts WHERE user_id = ?`).get(userId).c;
 }
 
 // ───────────────────────── sessioni ─────────────────────────

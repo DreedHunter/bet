@@ -163,6 +163,7 @@ function renderUsers(){
           ? `<button class="btn danger sm" onclick="activate(${u.id},false)">Disatt.</button>`
           : `<button class="btn sm" onclick="activate(${u.id},true)">Attiva</button>`}
         <button class="btn ghost sm" onclick="editAccounts(${u.id})">Account</button>
+        <button class="btn ghost sm" onclick="openImportAccounts(${u.id},'${esc(u.email)}')">Import</button>
         <button class="btn ghost sm" onclick="askPassword(${u.id})">Pass</button>
         <button class="btn ghost sm" onclick="filterSniffByUser(${u.id},'${esc(u.email)}')">Sniff</button>
         <button class="btn ghost sm" onclick="askMessage(${u.id})">Msg</button>
@@ -242,6 +243,57 @@ async function saveAccModal(){
   }
   await api("/api/admin/multibook","POST",{ userId: uid, enabled: $("accMultibook").checked });
   closeModal("accModal"); toast("Account salvati"); loadUsers();
+}
+
+// ───────── import account extra (multi-account da TXT) ─────────
+let importUserId = null;
+const BK_LBL = { goldbet:"Goldbet", lottomatica:"Lottomatica", planetwin365:"Planetwin365" };
+function openImportAccounts(userId, email){
+  importUserId = userId;
+  $("importModalTitle").textContent = "Import account extra — " + email;
+  $("importTxt").value = "";
+  $("importResult").innerHTML = "";
+  $("importFile").value = "";
+  loadImportList();
+  openModal("importModal");
+}
+// carica il TXT da file nella textarea
+$("importFile") && $("importFile").addEventListener("change", (e) => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { $("importTxt").value = r.result || ""; };
+  r.readAsText(f);
+});
+async function doImportAccounts(){
+  const uid = importUserId; if (!uid) return;
+  const txt = $("importTxt").value || "";
+  if (!txt.trim()){ $("importResult").innerHTML = '<span style="color:var(--red)">Incolla o carica un TXT</span>'; return; }
+  const r = await api("/api/admin/extra-accounts/import","POST",{ userId: uid, txt });
+  if (!r.ok){ $("importResult").innerHTML = '<span style="color:var(--red)">'+esc(r.error||"errore")+'</span>'; return; }
+  let msg = `<span style="color:var(--green)">✓ ${r.imported} importati</span>`;
+  if (r.errors && r.errors.length){
+    msg += ` · <span style="color:var(--red)">${r.errors.length} righe scartate:</span><br>`
+      + r.errors.map(e => `<span style="color:var(--muted)">riga ${e.line}: ${esc(e.reason)}</span>`).join("<br>");
+  }
+  $("importResult").innerHTML = msg;
+  loadImportList();
+}
+async function loadImportList(){
+  const uid = importUserId; if (!uid) return;
+  const r = await api("/api/admin/extra-accounts?userId=" + uid);
+  const rows = (r.ok && r.accounts) || [];
+  $("importListEmpty").style.display = rows.length ? "none" : "block";
+  $("importListBody").innerHTML = rows.map(a => `<tr>
+    <td>${bkBadge(a.bookmaker)}</td>
+    <td class="email">${esc(a.username)}</td>
+    <td class="mono" style="font-size:11px">${esc(a.password)}</td>
+    <td><button class="btn danger sm" onclick="delImportAccount('${esc(a.bookmaker)}','${esc(a.username)}')">✕</button></td>
+  </tr>`).join("");
+}
+async function delImportAccount(bookmaker, username){
+  const uid = importUserId; if (!uid) return;
+  await api("/api/admin/extra-accounts/delete","POST",{ userId: uid, bookmaker, username });
+  loadImportList();
 }
 
 // ───────── modal prompt (password / messaggio) ─────────
