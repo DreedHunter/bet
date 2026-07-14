@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "8.6",
-    "latestFile": "lottomatica-group-v8.6.zip",
+    "latest": "8.7",
+    "latestFile": "lottomatica-group-v8.7.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "8.7",
+        "file": "lottomatica-group-v8.7.zip",
+        "changelog": "Login account extra CROSS-BOOK via background: ora puoi loggare account di qualsiasi bookmaker da una scheda sola. Corretto brand planetwin=4.",
+        "date": "2026-07-14T03:10:28.356Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
