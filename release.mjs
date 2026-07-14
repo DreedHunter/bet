@@ -35,7 +35,11 @@ const REGISTRY = [
   { id: "lottomatica", dir: "lottomatica_fast_bet",  label: "Lottomatica Fast Bet",
     desc: "Estensione singola per Lottomatica." },
   { id: "planetwin",   dir: "planetwin_fast_bet",    label: "Planetwin365 Fast Bet",
-    desc: "Estensione singola per Planetwin365." }
+    desc: "Estensione singola per Planetwin365." },
+  { id: "belbet360",   dir: "belbet360_fast_bet",    label: "BelBet360 Fast Bet",
+    desc: "Azzera l'attesa di approvazione coupon su BelBet360 (mock checkForCouponApproval)." },
+  { id: "betnewera24", dir: "betnewera24_fast_bet",  label: "BetNewEra24 Fast Bet",
+    desc: "Azzera l'attesa di accettazione coupon su BetNewEra24 (mock coupon/check)." }
 ];
 
 function readManifestVersion(dir) {

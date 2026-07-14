@@ -250,5 +250,23 @@
         "date": "2026-07-13T13:04:10.176Z"
       }
     ]
+  },
+  "belbet360": {
+    "id": "belbet360",
+    "label": "BelBet360 Fast Bet",
+    "desc": "Azzera l'attesa di approvazione coupon su BelBet360 (mock checkForCouponApproval).",
+    "latest": "1.0",
+    "latestFile": "belbet360-v1.0.zip",
+    "history": [
+      {
+        "id": "belbet360",
+        "label": "BelBet360 Fast Bet",
+        "desc": "Azzera l'attesa di approvazione coupon su BelBet360 (mock checkForCouponApproval).",
+        "version": "1.0",
+        "file": "belbet360-v1.0.zip",
+        "changelog": "v1.0 — mock checkForCouponApproval per azzerare l'attesa di approvazione coupon (betdelay live 10s server-side resta)",
+        "date": "2026-07-14T20:11:43.144Z"
+      }
+    ]
   }
 }
