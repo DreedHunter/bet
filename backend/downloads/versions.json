@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "7.7",
-    "latestFile": "lottomatica-group-v7.7.zip",
+    "latest": "8.0",
+    "latestFile": "lottomatica-group-v8.0.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "8.0",
+        "file": "lottomatica-group-v8.0.zip",
+        "changelog": "GUI riorganizzata a schede (v8.0): ⚡Velocità (crono+log+smk+stats), ⚙️Funzioni (mock+importo), ⌨️Hotkey, 🔗Multibook (replica+saldi). Estensione più compatta, non si allunga più. Versione allineata a 8.0.",
+        "date": "2026-07-14T02:10:53.014Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
