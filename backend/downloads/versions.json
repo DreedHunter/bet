@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "8.0",
-    "latestFile": "lottomatica-group-v8.0.zip",
+    "latest": "8.1",
+    "latestFile": "lottomatica-group-v8.1.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "8.1",
+        "file": "lottomatica-group-v8.1.zip",
+        "changelog": "Rotella aggiorna saldi nella scheda Multibook (aggiorna il saldo della scheda corrente al volo). Rinominato il toggle 'Mock pendingBet' in 'Velocizza puntata'.",
+        "date": "2026-07-14T02:17:07.012Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
