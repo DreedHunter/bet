@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "8.4",
-    "latestFile": "lottomatica-group-v8.4.zip",
+    "latest": "8.5",
+    "latestFile": "lottomatica-group-v8.5.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "8.5",
+        "file": "lottomatica-group-v8.5.zip",
+        "changelog": "FIX login account extra: aggiunti campi obbligatori (IdCanale, Brand, Vertical, CodiceTransazione) al body login. Errori di validazione ora mostrati in chiaro per iterare velocemente.",
+        "date": "2026-07-14T02:58:42.839Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
