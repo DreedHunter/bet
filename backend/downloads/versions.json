@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "8.7",
-    "latestFile": "lottomatica-group-v8.7.zip",
+    "latest": "8.8",
+    "latestFile": "lottomatica-group-v8.8.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "8.8",
+        "file": "lottomatica-group-v8.8.zip",
+        "changelog": "Piazzamento MULTI-ACCOUNT: quando piazzi, la giocata va anche su tutti gli account extra salvati (loro token + stessi ID). Refresh saldi automatico dopo la giocata (book + account extra). Fix bug __req nella catena replica.",
+        "date": "2026-07-14T03:23:50.871Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
