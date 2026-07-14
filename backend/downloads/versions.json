@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "8.9",
-    "latestFile": "lottomatica-group-v8.9.zip",
+    "latest": "9.0",
+    "latestFile": "lottomatica-group-v9.0.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.0",
+        "file": "lottomatica-group-v9.0.zip",
+        "changelog": "Diagnostica login account extra: messaggi d'errore precisi (timeout background / errore rete / risposta Akamai) invece del generico 'Errore/timeout'. Occhiello 👁 sul campo password per mostrarla.",
+        "date": "2026-07-14T16:33:44.247Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
