@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "9.0",
-    "latestFile": "lottomatica-group-v9.0.zip",
+    "latest": "9.1",
+    "latestFile": "lottomatica-group-v9.1.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.1",
+        "file": "lottomatica-group-v9.1.zip",
+        "changelog": "Login account extra SAME-ORIGIN (risolve il 403 Akamai): il login avviene dalla pagina, non dal background. Auto-login all'avvio degli account del book corrente + orchestrazione multi-scheda (apre le schede dei book con account da loggare). Import da dashboard integrato.",
+        "date": "2026-07-14T16:54:46.650Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
