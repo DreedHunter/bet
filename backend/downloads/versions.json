@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "8.3",
-    "latestFile": "lottomatica-group-v8.3.zip",
+    "latest": "8.4",
+    "latestFile": "lottomatica-group-v8.4.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "8.4",
+        "file": "lottomatica-group-v8.4.zip",
+        "changelog": "Scheda 'Account extra' (👥 Account): login via API di account aggiuntivi nella stessa istanza (SHA-256 password + device riusato), verifica col saldo, salvataggio token. Base per il piazzamento multi-account veloce.",
+        "date": "2026-07-14T02:53:11.869Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
