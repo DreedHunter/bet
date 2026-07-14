@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "7.5",
-    "latestFile": "lottomatica-group-v7.5.zip",
+    "latest": "7.6",
+    "latestFile": "lottomatica-group-v7.6.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "7.6",
+        "file": "lottomatica-group-v7.6.zip",
+        "changelog": "Cattura raw (diagnostica) di getListaGiocatePending/getdettagliogiocatasportpending/getbalanceheader: request+response reali in dashboard (Attività > Raw API) per implementare log veritiero + saldo. Comando console gbfbRaw().",
+        "date": "2026-07-14T01:54:54.169Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",

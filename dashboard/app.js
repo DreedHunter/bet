@@ -461,21 +461,32 @@ function renderUsage(){
   $("usageEmpty").style.display = rows.length ? "none" : "block";
   $("usageBody").innerHTML = rows.map(u => {
     let detail = "";
+    let extra = "";  // riga espansa (per raw_capture: request/response grezze)
     try {
       const d = JSON.parse(u.detail || "{}");
       if (u.event === "sniff") detail = `${d.bookmaker||""} · ${d.endpoint||""} · ${(d.events||[]).map(e=>e.partita).filter(Boolean)[0]||""}`;
       else if (u.event === "bet") detail = `€${d.stake||0} · ${(d.selezioni||[]).map(s=>s.esito).filter(Boolean).join(", ")}`;
       else if (u.event === "bet_errore") detail = `${d.motivo||d.code||""}`;
+      else if (u.event === "raw_capture") {
+        detail = `${d.endpoint||"?"} · HTTP ${d.status||"?"}`;
+        extra = `<tr><td colspan="4" style="background:var(--bg2);padding:10px 14px">
+          <div style="color:var(--muted);font-size:11px;margin-bottom:4px">REQUEST</div>
+          <pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;margin-bottom:10px;max-height:180px;overflow:auto">${esc(d.reqBody||"—")}</pre>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:4px">RESPONSE</div>
+          <pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;max-height:220px;overflow:auto">${esc(d.respBody||"—")}</pre>
+        </td></tr>`;
+      }
       else detail = Object.entries(d).slice(0,3).map(([k,v]) => `${k}:${typeof v==="object"?"…":v}`).join(" · ");
     } catch {}
     const col = u.event.includes("errore")||u.event.includes("fallito") ? "var(--red)"
-      : u.event === "bet" ? "var(--green)" : u.event === "sniff" ? "var(--blue)" : "var(--muted)";
+      : u.event === "bet" ? "var(--green)" : u.event === "sniff" ? "var(--blue)"
+      : u.event === "raw_capture" ? "var(--accent)" : "var(--muted)";
     return `<tr>
       <td>${esc(fmtDate(u.ts))}</td>
       <td class="email">${esc(u.email)}</td>
       <td><span style="color:${col};font-weight:600">${esc(u.event)}</span></td>
       <td style="color:var(--muted);font-size:12px">${esc(detail)}</td>
-    </tr>`;
+    </tr>${extra}`;
   }).join("");
 }
 $("usageChips").addEventListener("click", (e) => {
