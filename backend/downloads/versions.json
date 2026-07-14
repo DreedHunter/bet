@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "8.1",
-    "latestFile": "lottomatica-group-v8.1.zip",
+    "latest": "8.2",
+    "latestFile": "lottomatica-group-v8.2.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "8.2",
+        "file": "lottomatica-group-v8.2.zip",
+        "changelog": "Refresh saldi CROSS-SCHEDA: la rotella nel Multibook ora aggiorna i saldi di TUTTE le schede bookmaker aperte con un click (broadcast tra schede, riutilizzabile per futuri comandi).",
+        "date": "2026-07-14T02:22:25.033Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
