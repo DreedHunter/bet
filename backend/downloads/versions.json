@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "9.1",
-    "latestFile": "lottomatica-group-v9.1.zip",
+    "latest": "9.2",
+    "latestFile": "lottomatica-group-v9.2.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.2",
+        "file": "lottomatica-group-v9.2.zip",
+        "changelog": "Messaggio chiaro per l'errore server 996 ('server lento, controlla lo storico — potrebbe essere piazzata'). Il rallentamento insertBet era lato server bookmaker, non estensione.",
+        "date": "2026-07-14T17:30:59.299Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
