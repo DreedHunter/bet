@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "7.6",
-    "latestFile": "lottomatica-group-v7.6.zip",
+    "latest": "7.7",
+    "latestFile": "lottomatica-group-v7.7.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "7.7",
+        "file": "lottomatica-group-v7.7.zip",
+        "changelog": "Saldo accanto ai 3 collegamenti nel menu multibook + keep-alive sessione: ogni 10min chiama getbalanceheader (rinnova la sessione se il server la rinnova, e aggiorna il saldo).",
+        "date": "2026-07-14T02:04:07.569Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
