@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "9.3",
-    "latestFile": "lottomatica-group-v9.3.zip",
+    "latest": "9.4",
+    "latestFile": "lottomatica-group-v9.4.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.4",
+        "file": "lottomatica-group-v9.4.zip",
+        "changelog": "v9.4 — MISURA LATENZA giocata (click->invio, invio->risposta, tempo server) in console e dashboard, per capire dove ottimizzare. + GUARDIA ANTI-STORNO non bloccante: avviso rosso se la selezione risulta sospesa/ritirata o con quota diversa dal server (causa tipica di storno), ma la giocata parte lo stesso.",
+        "date": "2026-07-15T12:49:30.287Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
