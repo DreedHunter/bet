@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "9.2",
-    "latestFile": "lottomatica-group-v9.2.zip",
+    "latest": "9.3",
+    "latestFile": "lottomatica-group-v9.3.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.3",
+        "file": "lottomatica-group-v9.3.zip",
+        "changelog": "Fix bug importo: la giocata rapida ora piazza l'importo che digiti (prima Angular ignorava il valore e piazzava sempre l'importo del sito, es. 3€). Ora si usa il native value setter per farlo registrare davvero.",
+        "date": "2026-07-15T11:16:42.428Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
