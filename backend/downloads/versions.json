@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "9.4",
-    "latestFile": "lottomatica-group-v9.4.zip",
+    "latest": "9.5",
+    "latestFile": "lottomatica-group-v9.5.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.5",
+        "file": "lottomatica-group-v9.5.zip",
+        "changelog": "v9.5 - Rimossa l'automazione che attivava da sola la 'Giocata Rapida' sul toggle del sito: ora il toggle resta come lo lasci tu.",
+        "date": "2026-07-17T20:21:23.815Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
