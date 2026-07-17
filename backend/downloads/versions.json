@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "9.5",
-    "latestFile": "lottomatica-group-v9.5.zip",
+    "latest": "9.6",
+    "latestFile": "lottomatica-group-v9.6.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.6",
+        "file": "lottomatica-group-v9.6.zip",
+        "changelog": "v9.6 - Rimosso il campo 'Importo puntata' dalla GUI. La replica multibook usa comunque l'importo reale giocato su Goldbet, che passa uguale a Lottomatica e Planetwin.",
+        "date": "2026-07-17T20:28:32.780Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
