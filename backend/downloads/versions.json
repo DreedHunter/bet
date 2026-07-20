@@ -327,9 +327,18 @@
     "id": "williamhill",
     "label": "William Hill Fast Bet",
     "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
-    "latest": "4.0",
-    "latestFile": "williamhill-v4.0.zip",
+    "latest": "4.1",
+    "latestFile": "williamhill-v4.1.zip",
     "history": [
+      {
+        "id": "williamhill",
+        "label": "William Hill Fast Bet",
+        "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
+        "version": "4.1",
+        "file": "williamhill-v4.1.zip",
+        "changelog": "v4.1 - Campo importo: selettori piu' larghi con fallback + attesa 5s + tentativo di espandere la Singola. Se ancora non lo trova, diagnostica in console.",
+        "date": "2026-07-20T21:13:41.925Z"
+      },
       {
         "id": "williamhill",
         "label": "William Hill Fast Bet",
