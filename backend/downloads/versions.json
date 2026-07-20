@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "9.7",
-    "latestFile": "lottomatica-group-v9.7.zip",
+    "latest": "9.8",
+    "latestFile": "lottomatica-group-v9.8.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.8",
+        "file": "lottomatica-group-v9.8.zip",
+        "changelog": "v9.8 - SESSIONE SEMPRE ATTIVA: nuova sezione nel tab Account dove inserisci le credenziali del tuo account; l'estensione rilogga in automatico ogni 45 min cosi' la sessione non scade mai. Password salvata solo come hash.",
+        "date": "2026-07-20T20:35:48.959Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
