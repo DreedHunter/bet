@@ -3,9 +3,18 @@
     "id": "lottomatica-group",
     "label": "Lottomatica Group Fast Bet",
     "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
-    "latest": "9.6",
-    "latestFile": "lottomatica-group-v9.6.zip",
+    "latest": "9.7",
+    "latestFile": "lottomatica-group-v9.7.zip",
     "history": [
+      {
+        "id": "lottomatica-group",
+        "label": "Lottomatica Group Fast Bet",
+        "desc": "Estensione unificata (Goldbet + Lottomatica + Planetwin365) con multibook e sniff.",
+        "version": "9.7",
+        "file": "lottomatica-group-v9.7.zip",
+        "changelog": "v9.7 - Sessione Goldbet piu' stabile: keep-alive ogni 5 min (era 10), invia i cookie di sessione, e un ping extra quando torni sulla scheda. Riduce le disconnessioni.",
+        "date": "2026-07-20T20:28:48.314Z"
+      },
       {
         "id": "lottomatica-group",
         "label": "Lottomatica Group Fast Bet",
