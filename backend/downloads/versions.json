@@ -327,9 +327,18 @@
     "id": "williamhill",
     "label": "William Hill Fast Bet",
     "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
-    "latest": "4.2",
-    "latestFile": "williamhill-v4.2.zip",
+    "latest": "4.3",
+    "latestFile": "williamhill-v4.3.zip",
     "history": [
+      {
+        "id": "williamhill",
+        "label": "William Hill Fast Bet",
+        "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
+        "version": "4.3",
+        "file": "williamhill-v4.3.zip",
+        "changelog": "v4.3 - Aggiunte hotkey Casa/Ospite: registri un tasto per Casa e uno per Ospite; premendolo gioca la quota Casa/Ospite del mercato aperto della partita (trova da sola), col tuo importo.",
+        "date": "2026-07-20T21:20:58.948Z"
+      },
       {
         "id": "williamhill",
         "label": "William Hill Fast Bet",
