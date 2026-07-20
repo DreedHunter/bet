@@ -304,5 +304,23 @@
         "date": "2026-07-14T20:11:43.144Z"
       }
     ]
+  },
+  "williamhill": {
+    "id": "williamhill",
+    "label": "William Hill Fast Bet",
+    "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
+    "latest": "2.3",
+    "latestFile": "williamhill-v2.3.zip",
+    "history": [
+      {
+        "id": "williamhill",
+        "label": "William Hill Fast Bet",
+        "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
+        "version": "2.3",
+        "file": "williamhill-v2.3.zip",
+        "changelog": "v2.3 - Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite registrabili. Costruisce la purchase direttamente (cattura&replica del payload xSport).",
+        "date": "2026-07-20T20:18:10.473Z"
+      }
+    ]
   }
 }

@@ -39,7 +39,9 @@ const REGISTRY = [
   { id: "belbet360",   dir: "belbet360_fast_bet",    label: "BelBet360 Fast Bet",
     desc: "Azzera l'attesa di approvazione coupon su BelBet360 (mock checkForCouponApproval)." },
   { id: "betnewera24", dir: "betnewera24_fast_bet",  label: "BetNewEra24 Fast Bet",
-    desc: "Azzera l'attesa di accettazione coupon su BetNewEra24 (mock coupon/check)." }
+    desc: "Azzera l'attesa di accettazione coupon su BetNewEra24 (mock coupon/check)." },
+  { id: "williamhill", dir: "williamhill_fast_bet",  label: "William Hill Fast Bet",
+    desc: "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase)." }
 ];
 
 function readManifestVersion(dir) {
