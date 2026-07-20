@@ -327,9 +327,18 @@
     "id": "williamhill",
     "label": "William Hill Fast Bet",
     "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
-    "latest": "3.0",
-    "latestFile": "williamhill-v3.0.zip",
+    "latest": "4.0",
+    "latestFile": "williamhill-v4.0.zip",
     "history": [
+      {
+        "id": "williamhill",
+        "label": "William Hill Fast Bet",
+        "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
+        "version": "4.0",
+        "file": "williamhill-v4.0.zip",
+        "changelog": "v4.0 - Cambiato approccio: AUTO-CLICK DOM invece di API (risolve il rifiuto code -2007). Clicchi una quota e l'estensione la aggiunge al carrello, scrive l'importo e clicca Scommetti da sola.",
+        "date": "2026-07-20T21:09:42.726Z"
+      },
       {
         "id": "williamhill",
         "label": "William Hill Fast Bet",
