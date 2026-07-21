@@ -327,9 +327,18 @@
     "id": "williamhill",
     "label": "William Hill Fast Bet",
     "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
-    "latest": "4.3",
-    "latestFile": "williamhill-v4.3.zip",
+    "latest": "4.4",
+    "latestFile": "williamhill-v4.4.zip",
     "history": [
+      {
+        "id": "williamhill",
+        "label": "William Hill Fast Bet",
+        "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
+        "version": "4.4",
+        "file": "williamhill-v4.4.zip",
+        "changelog": "v4.4 - Aggiunte 2 hotkey Gol 1° Tempo Casa/Ospite, che compaiono nel pannello SOLO se il mercato 1°T e' presente in pagina. Distingue 1T da 'Casa (1/1)' vs 'Casa (1)'. Fix toast registrazione tasto.",
+        "date": "2026-07-21T16:12:14.104Z"
+      },
       {
         "id": "williamhill",
         "label": "William Hill Fast Bet",
