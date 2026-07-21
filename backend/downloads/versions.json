@@ -502,5 +502,23 @@
         "date": "2026-07-21T17:49:43.370Z"
       }
     ]
+  },
+  "dashboard-source": {
+    "id": "dashboard-source",
+    "label": "Sorgente Dashboard + Backend",
+    "desc": "Codice del sistema licenze/dashboard (senza database né dipendenze). Per clonarlo su altri PC.",
+    "latest": "2026-07-21",
+    "latestFile": "dashboard-source-2026-07-21.zip",
+    "history": [
+      {
+        "id": "dashboard-source",
+        "label": "Sorgente Dashboard + Backend",
+        "desc": "Codice del sistema licenze/dashboard (senza database né dipendenze). Per clonarlo su altri PC.",
+        "version": "2026-07-21",
+        "file": "dashboard-source-2026-07-21.zip",
+        "changelog": "Sorgente dashboard+backend v1 - codice completo del sistema (senza database ne' dipendenze)",
+        "date": "2026-07-21T17:54:03.941Z"
+      }
+    ]
   }
 }

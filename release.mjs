@@ -122,9 +122,53 @@ function releaseOne(entry, changelog, force) {
   return manifest[entry.id];
 }
 
+// ── SORGENTE DASHBOARD+BACKEND: zip del codice del sistema (per averlo su altri PC) ──
+// Include il codice (backend/dashboard/extension/release.mjs/PROGETTO.md), ESCLUDE i dati
+// sensibili: il database (.db, con licenze/password utenti), node_modules, la cartella
+// downloads (gli zip), .git. Registrato in versions.json come voce "dashboard-source".
+// ⚠️ NB: server.js contiene la ADMIN_PASSWORD di default: in produzione usa la env var.
+function releaseDashboardSource(changelog) {
+  const id = "dashboard-source";
+  const version = new Date().toISOString().slice(0, 10);   // versione = data (YYYY-MM-DD)
+  const fileName = `${id}-${version}.zip`;
+  const zipPath = join(OUT_DIR, fileName);
+  if (existsSync(zipPath)) rmSync(zipPath);
+  const root = __dirname;   // = license_system/
+  // Compress-Archive con esclusioni: prendiamo solo le sottocartelle/​file di codice.
+  const items = ["backend/db.js", "backend/server.js", "backend/package.json",
+                 "dashboard", "extension", "autoupdater", "release.mjs",
+                 "Dockerfile", "railway.json", "README.md", "PROGETTO.md"]
+    .map(p => `'${join(root, p)}'`).join(", ");
+  if (platform() === "win32") {
+    execFileSync("powershell", ["-NoProfile", "-Command",
+      `Compress-Archive -Path ${items} -DestinationPath '${zipPath}' -Force`
+    ], { stdio: "pipe" });
+  } else {
+    // fallback unix: zip ricorsivo dei path elencati
+    const paths = ["backend/db.js","backend/server.js","backend/package.json","dashboard","extension","autoupdater","release.mjs","Dockerfile","railway.json","README.md","PROGETTO.md"];
+    execFileSync("zip", ["-r", "-q", zipPath, ...paths], { cwd: root, stdio: "pipe" });
+  }
+  const manifest = loadManifest();
+  const record = { id, label: "Sorgente Dashboard + Backend", desc: "Codice del sistema licenze/dashboard (senza database né dipendenze). Per clonarlo su altri PC.",
+                   version, file: fileName, changelog: changelog || `Sorgente ${version}`, date: nowIso() };
+  const hist = manifest[id]?.history || [];
+  const already = hist[0] && hist[0].version === version;
+  manifest[id] = { id, label: record.label, desc: record.desc, latest: version, latestFile: fileName,
+                   history: already ? [record, ...hist.slice(1)] : [record, ...hist] };
+  saveManifest(manifest);
+  console.log(`  ✓ ${id}: ${version} → ${fileName}`);
+}
+
 function main() {
   if (!existsSync(OUT_DIR)) mkdirSync(OUT_DIR, { recursive: true });
   const args = process.argv.slice(2);
+
+  // release del solo sorgente dashboard: node release.mjs --dashboard "changelog"
+  if (args[0] === "--dashboard") {
+    console.log("Zip sorgente dashboard+backend:");
+    releaseDashboardSource(args[1] || "");
+    return;
+  }
 
   if (args[0] && args[0] !== "--all") {
     // release mirata: <ext-id> "changelog"
@@ -138,6 +182,8 @@ function main() {
   const force = args[0] === "--all";
   console.log(force ? "Rizippo TUTTE le estensioni:" : "Rilascio le estensioni con versione nuova:");
   for (const entry of REGISTRY) releaseOne(entry, "", force);
+  // con --all rigeneriamo anche il sorgente dashboard
+  if (force) releaseDashboardSource("");
   console.log(`\nManifesto: ${MANIFEST}`);
 }
 
