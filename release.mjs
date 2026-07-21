@@ -47,7 +47,9 @@ const REGISTRY = [
   { id: "betzone",     dir: "betzone/betfast-extension", label: "Betzone BetFast",
     desc: "Piazzamento rapido su Betzone: elimina i ritardi client (countdown/guard) + poll rapido accettazione." },
   { id: "betradar-sync", dir: "checktimes/goldbet_betradar_sync", label: "Goldbet ↔ Betradar Sync",
-    desc: "Strumento di timing: confronta i tempi Goldbet col feed Betradar (WebSocket) e mostra il ritardo per partita." }
+    desc: "Strumento di timing: confronta i tempi Goldbet col feed Betradar (WebSocket) e mostra il ritardo per partita." },
+  { id: "rest-sniffer", dir: "rest_sniffer", label: "REST Sniffer — Bet Flow Analyzer",
+    desc: "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book." }
 ];
 
 function readManifestVersion(dir) {

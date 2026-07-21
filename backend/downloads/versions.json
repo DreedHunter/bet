@@ -484,5 +484,23 @@
         "date": "2026-07-21T17:36:03.032Z"
       }
     ]
+  },
+  "rest-sniffer": {
+    "id": "rest-sniffer",
+    "label": "REST Sniffer — Bet Flow Analyzer",
+    "desc": "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book.",
+    "latest": "1.1",
+    "latestFile": "rest-sniffer-v1.1.zip",
+    "history": [
+      {
+        "id": "rest-sniffer",
+        "label": "REST Sniffer — Bet Flow Analyzer",
+        "desc": "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book.",
+        "version": "1.1",
+        "file": "rest-sniffer-v1.1.zip",
+        "changelog": "v1.1 - Filtro anti-rumore (scarta streaming/tracking/asset: sniff piu' piccoli), evidenzia i piazzamenti LENTI + estrae il delay server, riconosce la piattaforma del book. Piu' leggero e utile.",
+        "date": "2026-07-21T17:49:43.370Z"
+      }
+    ]
   }
 }
