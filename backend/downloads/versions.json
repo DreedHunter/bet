@@ -327,9 +327,18 @@
     "id": "williamhill",
     "label": "William Hill Fast Bet",
     "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
-    "latest": "4.4",
-    "latestFile": "williamhill-v4.4.zip",
+    "latest": "4.5",
+    "latestFile": "williamhill-v4.5.zip",
     "history": [
+      {
+        "id": "williamhill",
+        "label": "William Hill Fast Bet",
+        "desc": "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase).",
+        "version": "4.5",
+        "file": "williamhill-v4.5.zip",
+        "changelog": "v4.5 - Nuova palette NERO e ORO (era rosso): header nero con accento oro, importo e tasti in oro, toast info nero bordato oro. Piu' elegante.",
+        "date": "2026-07-21T16:13:38.014Z"
+      },
       {
         "id": "williamhill",
         "label": "William Hill Fast Bet",
