@@ -208,6 +208,23 @@
     .content{padding:11px}
     .panel-b{padding:12px}
   }
+  /* documentazione markdown (PROGETTO.md) */
+  .doc-md{font-size:13.5px;line-height:1.6;color:var(--txt);max-width:900px}
+  .doc-md h2{font-size:19px;margin:22px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .doc-md h3{font-size:15px;margin:18px 0 8px;color:var(--accent)}
+  .doc-md h4{font-size:13.5px;margin:14px 0 6px}
+  .doc-md p{margin:8px 0}
+  .doc-md ul{margin:8px 0 8px 4px;padding-left:20px}
+  .doc-md li{margin:3px 0}
+  .doc-md code{background:var(--card);padding:1px 5px;border-radius:4px;font-size:12px;font-family:ui-monospace,monospace}
+  .doc-md pre{background:var(--card);padding:10px 12px;border-radius:8px;overflow-x:auto;margin:10px 0}
+  .doc-md pre code{background:none;padding:0}
+  .doc-md hr{border:none;border-top:1px solid var(--line);margin:18px 0}
+  .doc-md blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:10px 0;color:var(--muted);border-radius:0 6px 6px 0}
+  .doc-md a{color:var(--accent)}
+  .doc-tbl{border-collapse:collapse;margin:12px 0;width:100%;font-size:12.5px;overflow-x:auto;display:block}
+  .doc-tbl td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
+  .doc-tbl tr:first-child td{background:var(--card);font-weight:700}
 </style>
 </head>
 <body>
@@ -245,6 +262,7 @@
         <button data-view="downloads"><span class="ico">⬇️</span>Download estensioni</button>
         <button data-view="bookspeed"><span class="ico">📈</span>Velocità book</button>
         <button data-view="matches"><span class="ico">🎲</span>Partite giocate</button>
+        <button data-view="docs"><span class="ico">📖</span>Documentazione</button>
         <button data-view="usage"><span class="ico">📜</span>Attività</button>
         <button data-view="tabs"><span class="ico">🗂️</span>Schede aperte</button>
         <button data-view="version"><span class="ico">⬆️</span>Versione &amp; Export</button>
@@ -461,6 +479,24 @@
             <div class="panel-h"><h3>🎲 Partite giocate</h3></div>
             <div class="panel-b">
               <div class="empty">🎲 Sezione in arrivo — qui vedrai lo storico delle partite giocate e i tempi per book.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- DOCUMENTAZIONE: mostra il PROGETTO.md (memoria del progetto) -->
+        <section class="view" id="view-docs">
+          <div class="panel">
+            <div class="panel-h">
+              <h3>📖 Documentazione del progetto</h3>
+              <a class="btn ghost sm" href="/PROGETTO.md" download="PROGETTO.md">⬇ Scarica .md</a>
+            </div>
+            <div class="panel-b">
+              <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
+                Memoria completa del progetto: cosa abbiamo fatto, cosa è stato provato su ogni book,
+                la regola chiave sulle piattaforme, i vicoli ciechi e come continuare.
+                Un copilot su un altro PC può leggerla per lavorare in parallelo.
+              </p>
+              <div id="docBody" class="doc-md"><div class="empty">Caricamento…</div></div>
             </div>
           </div>
         </section>

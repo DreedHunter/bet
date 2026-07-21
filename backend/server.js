@@ -500,7 +500,7 @@ const server = createServer(async (req, res) => {
       const full = join(DASHBOARD_DIR, file);
       try {
         const content = await readFile(full);
-        const type = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" }[extname(full)] || "text/plain";
+        const type = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".md": "text/markdown", ".json": "application/json" }[extname(full)] || "text/plain";
         res.writeHead(200, { "Content-Type": type + "; charset=utf-8" });
         return res.end(content);
       } catch {

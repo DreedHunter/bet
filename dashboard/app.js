@@ -52,12 +52,13 @@ function loadAll(){
 const VIEW_TITLES = {
   overview:"Panoramica", users:"Utenti", live:"Chi è online", bets:"Giocate",
   sniff:"Sniff multibook", downloads:"Download estensioni", bookspeed:"Velocità book", matches:"Partite giocate",
-  usage:"Attività", tabs:"Schede aperte", version:"Versione & Export"
+  docs:"Documentazione", usage:"Attività", tabs:"Schede aperte", version:"Versione & Export"
 };
 function switchView(v){
   document.querySelectorAll(".view").forEach(s => s.classList.toggle("active", s.id === "view-"+v));
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
   $("viewTitle").textContent = VIEW_TITLES[v] || v;
+  if (v === "docs") loadDocs();   // lazy-load della documentazione
   toggleMenu(false);
 }
 document.getElementById("nav").addEventListener("click", (e) => {
@@ -533,6 +534,55 @@ async function loadBookSpeed(){
   renderBookRank();
   renderBookTable();
   renderBookAverages(r.averages || []);
+}
+
+// ───────── documentazione (PROGETTO.md) ─────────
+let docsLoaded = false;
+async function loadDocs(){
+  if (docsLoaded) return;   // carica una volta sola
+  const el = $("docBody"); if (!el) return;
+  try {
+    const res = await fetch(API + "/PROGETTO.md", { cache: "no-store" });
+    if (!res.ok) throw 0;
+    const md = await res.text();
+    el.innerHTML = mdToHtml(md);
+    docsLoaded = true;
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Documento non disponibile.</div>';
+  }
+}
+// mini renderer markdown → HTML (titoli, grassetto, liste, tabelle, code, hr)
+function mdToHtml(md){
+  const lines = String(md).split("\n");
+  let html = "", inTable = false, inUl = false, inCode = false;
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  const closeUl = () => { if (inUl){ html += "</ul>"; inUl = false; } };
+  const closeTable = () => { if (inTable){ html += "</tbody></table>"; inTable = false; } };
+  for (let raw of lines){
+    if (raw.trim().startsWith("```")){ inCode = !inCode; html += inCode ? "<pre><code>" : "</code></pre>"; continue; }
+    if (inCode){ html += esc(raw) + "\n"; continue; }
+    const l = raw.trimEnd();
+    if (/^\s*\|.*\|\s*$/.test(l)){
+      const cells = l.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
+      if (/^[\s:|-]+$/.test(l.replace(/\|/g,""))) continue; // riga separatrice
+      if (!inTable){ closeUl(); html += "<table class='doc-tbl'><tbody>"; inTable = true; }
+      const tag = /<strong>/.test(inline(cells.join(""))) ? "td":"td";
+      html += "<tr>" + cells.map(c=>`<${tag}>${inline(c)}</${tag}>`).join("") + "</tr>";
+      continue;
+    } else closeTable();
+    if (/^#{1,6}\s/.test(l)){ closeUl(); const n=l.match(/^#+/)[0].length; html += `<h${Math.min(n+1,6)}>${inline(l.replace(/^#+\s/,""))}</h${Math.min(n+1,6)}>`; continue; }
+    if (/^\s*[-*]\s/.test(l)){ if(!inUl){ html += "<ul>"; inUl=true; } html += `<li>${inline(l.replace(/^\s*[-*]\s/,""))}</li>`; continue; }
+    closeUl();
+    if (/^\s*---\s*$/.test(l)){ html += "<hr>"; continue; }
+    if (/^\s*>\s?/.test(l)){ html += `<blockquote>${inline(l.replace(/^\s*>\s?/,""))}</blockquote>`; continue; }
+    if (!l.trim()){ continue; }
+    html += `<p>${inline(l)}</p>`;
+  }
+  closeUl(); closeTable();
+  return html;
 }
 
 function renderBookRank(){
