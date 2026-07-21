@@ -169,6 +169,23 @@
   .tl-fill{display:block;height:100%;background:var(--blue);border-radius:5px}
   .tl-fill.papa{background:var(--accent)}
 
+  /* ─── velocità book ─── */
+  .rank-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .rank-row:last-child{border:none}
+  .rank-row .pos{width:26px;height:26px;border-radius:50%;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 auto;color:var(--muted)}
+  .rank-row .light{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+  .rank-row .rk-name{font-weight:700;flex:1;min-width:0}
+  .rank-row .rk-name small{display:block;color:var(--muted);font-size:11px;font-weight:400}
+  .rank-times{display:flex;gap:8px;flex-wrap:wrap;flex:0 0 auto}
+  .rk-time{background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12px;white-space:nowrap}
+  .rk-time b{font-family:ui-monospace,monospace}
+  .rk-time small{color:var(--muted2);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+  .st-badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+  .st-ok{background:var(--greenDim);color:var(--green)}
+  .st-analisi{background:var(--accentDim);color:var(--accent)}
+  .st-vicolo{background:var(--redDim);color:var(--red)}
+  .st-none{background:var(--card2);color:var(--muted)}
+
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border2);color:var(--txt);padding:12px 20px;border-radius:var(--rs);z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:13px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1;bottom:30px}
   .scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35}
@@ -226,6 +243,8 @@
         <button data-view="bets"><span class="ico">🎯</span>Giocate</button>
         <button data-view="sniff"><span class="ico">🔎</span>Sniff multibook</button>
         <button data-view="downloads"><span class="ico">⬇️</span>Download estensioni</button>
+        <button data-view="bookspeed"><span class="ico">📈</span>Velocità book</button>
+        <button data-view="matches"><span class="ico">🎲</span>Partite giocate</button>
         <button data-view="usage"><span class="ico">📜</span>Attività</button>
         <button data-view="tabs"><span class="ico">🗂️</span>Schede aperte</button>
         <button data-view="version"><span class="ico">⬆️</span>Versione &amp; Export</button>
@@ -362,6 +381,86 @@
             <div class="panel-b">
               <div id="dlCards"></div>
               <div id="dlEmpty" class="empty" style="display:none">Nessuna estensione pubblicata. Lancia lo script di release.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- BOOKSPEED -->
+        <section class="view" id="view-bookspeed">
+          <!-- classifica / confronto -->
+          <div class="panel">
+            <div class="panel-h"><h3>🏁 Classifica velocità (LIVE)</h3>
+              <span class="match" style="margin-left:auto;color:var(--muted);font-size:12px">🟢 ≤5s · 🟡 ≤15s · 🔴 &gt;15s · ⚪ n.d.</span>
+              <button class="btn ghost sm" onclick="loadBookSpeed()">↻</button>
+            </div>
+            <div class="panel-b flush" id="bsRank"><div class="empty">Caricamento…</div></div>
+          </div>
+
+          <!-- tabella editabile -->
+          <div class="panel">
+            <div class="panel-h"><h3>⚙️ Book & tempi (editabile)</h3>
+              <button class="btn sm" style="margin-left:auto" onclick="addBookStat()">➕ Aggiungi book</button>
+            </div>
+            <!-- form inline (nascosto di default) -->
+            <div class="panel-b" id="bsForm" style="display:none;border-bottom:1px solid var(--border)">
+              <input type="hidden" id="bsEditSlug">
+              <div class="grid3">
+                <div class="field"><label class="fl">Slug (id univoco)</label><input id="bsSlug" placeholder="es. goldbet"></div>
+                <div class="field"><label class="fl">Nome</label><input id="bsNome" placeholder="es. Goldbet"></div>
+                <div class="field"><label class="fl">Piattaforma</label><input id="bsPiattaforma" placeholder="es. Playtech"></div>
+              </div>
+              <div class="grid3">
+                <div class="field"><label class="fl">Stato</label>
+                  <select id="bsStato">
+                    <option>Funzionante</option><option>In analisi</option>
+                    <option>Vicolo cieco</option><option>Non iniziato</option>
+                  </select>
+                </div>
+                <div class="field"><label class="fl">Ordine</label><input id="bsOrdine" type="number" placeholder="0"></div>
+                <div class="field"><label class="fl">Azzerabile</label>
+                  <select id="bsAzzerabile">
+                    <option value="non testato">non testato</option>
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                    <option value="PARZIALE">PARZIALE</option>
+                  </select></div>
+              </div>
+              <div class="grid3">
+                <div class="field"><label class="fl">Sec. live</label><input id="bsSecLive" type="number" step="0.1" placeholder="es. 3"></div>
+                <div class="field"><label class="fl">Sec. intervallo</label><input id="bsSecIntervallo" type="number" step="0.1" placeholder="es. 8"></div>
+                <div class="field"><label class="fl">Sec. prematch</label><input id="bsSecPrematch" type="number" step="0.1" placeholder="es. 2"></div>
+              </div>
+              <div class="field"><label class="fl">Note</label><input id="bsNote" placeholder="note libere"></div>
+              <div class="row-actions">
+                <button class="btn" onclick="submitBookStat()">Salva book</button>
+                <button class="btn ghost" onclick="cancelBookStatForm()">Annulla</button>
+                <span id="bsFormErr" style="color:var(--red);font-size:13px;align-self:center"></span>
+              </div>
+            </div>
+            <div class="panel-b flush tbl-wrap">
+              <table>
+                <thead><tr><th>Nome</th><th>Piattaforma</th><th>Stato</th><th>Live</th><th>Interv.</th><th>Prematch</th><th>Azzer.</th><th>Note</th><th>Azioni</th></tr></thead>
+                <tbody id="bsTableBody"></tbody>
+              </table>
+              <div id="bsTableEmpty" class="empty" style="display:none">Nessun book. Aggiungine uno con ➕.</div>
+            </div>
+          </div>
+
+          <!-- dati raccolti (medie reali) -->
+          <div class="panel">
+            <div class="panel-h"><h3>📊 Dati raccolti (medie reali)</h3>
+              <span class="match" style="margin-left:auto;color:var(--muted);font-size:12px">Popolato dalle giocate reali delle estensioni</span>
+            </div>
+            <div class="panel-b flush tbl-wrap" id="bsAvg"><div class="empty">Caricamento…</div></div>
+          </div>
+        </section>
+
+        <!-- MATCHES (placeholder) -->
+        <section class="view" id="view-matches">
+          <div class="panel">
+            <div class="panel-h"><h3>🎲 Partite giocate</h3></div>
+            <div class="panel-b">
+              <div class="empty">🎲 Sezione in arrivo — qui vedrai lo storico delle partite giocate e i tempi per book.</div>
             </div>
           </div>
         </section>

@@ -41,7 +41,13 @@ const REGISTRY = [
   { id: "betnewera24", dir: "betnewera24_fast_bet",  label: "BetNewEra24 Fast Bet",
     desc: "Azzera l'attesa di accettazione coupon su BetNewEra24 (mock coupon/check)." },
   { id: "williamhill", dir: "williamhill_fast_bet",  label: "William Hill Fast Bet",
-    desc: "Giocata rapida al doppio-click su una quota col tuo importo + hotkey Casa/Ospite (xSport purchase)." }
+    desc: "Giocata rapida al click su una quota col tuo importo + hotkey Casa/Ospite (xSport, auto-click DOM)." },
+  { id: "eurobet",     dir: "eurobet_fast_bet",      label: "Eurobet Fast Bet",
+    desc: "Analisi/test su Eurobet (piattaforma proprietaria sport-sale-service). Betdelay live server-side." },
+  { id: "betzone",     dir: "betzone/betfast-extension", label: "Betzone BetFast",
+    desc: "Piazzamento rapido su Betzone: elimina i ritardi client (countdown/guard) + poll rapido accettazione." },
+  { id: "betradar-sync", dir: "checktimes/goldbet_betradar_sync", label: "Goldbet ↔ Betradar Sync",
+    desc: "Strumento di timing: confronta i tempi Goldbet col feed Betradar (WebSocket) e mostra il ritardo per partita." }
 ];
 
 function readManifestVersion(dir) {

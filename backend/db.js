@@ -115,12 +115,47 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- STATISTICHE BOOKMAKER: scheda per ogni book (velocità di piazzamento per stato
+  -- partita, piattaforma, stato, note). Editabile dalla dashboard admin. È la tabella
+  -- di riferimento per il confronto "chi è più veloce". slug = chiave stabile.
+  CREATE TABLE IF NOT EXISTS book_stats (
+    slug          TEXT PRIMARY KEY,       -- es. "goldbet", "williamhill"
+    nome          TEXT NOT NULL,
+    piattaforma   TEXT,                   -- es. "GAD/Lottomatica", "xSport", "Altenar"
+    stato         TEXT,                   -- "Funzionante" | "In analisi" | "Vicolo cieco" | "Non iniziato"
+    sec_live      REAL,                   -- secondi piazzamento LIVE in gioco (NULL = non misurato)
+    sec_intervallo REAL,                  -- secondi all'INTERVALLO
+    sec_prematch  REAL,                   -- secondi PREMATCH
+    azzerabile    TEXT,                   -- "SI" | "NO" | "PARZIALE" | "non testato"
+    note          TEXT,                   -- note libere / cosa provato
+    ordine        INTEGER NOT NULL DEFAULT 100,  -- per ordinamento manuale
+    updated_at    TEXT NOT NULL
+  );
+
+  -- RACCOLTA AUTOMATICA dei tempi reali di piazzamento, inviati dalle estensioni.
+  -- Ogni riga = una giocata cronometrata. Serve per popolare le medie e capire
+  -- chi è più veloce su quali partite, coi dati veri raccolti nel tempo.
+  CREATE TABLE IF NOT EXISTS bet_timings (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER,                 -- chi (NULL se anonimo)
+    book         TEXT NOT NULL,           -- slug del book
+    partita      TEXT,                    -- descrizione evento
+    stato_partita TEXT,                   -- "live" | "intervallo" | "prematch"
+    secondi      REAL,                    -- tempo reale di accettazione
+    delay_server INTEGER,                 -- delay dichiarato dal server (se noto)
+    esito        TEXT,                    -- "confermata" | "rifiutata" | "stornata"
+    quota        REAL,
+    importo      REAL,
+    ts           TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_usage_user_ts   ON usage_log(user_id, id DESC);
   CREATE INDEX IF NOT EXISTS idx_usage_event     ON usage_log(event);
   CREATE INDEX IF NOT EXISTS idx_sessions_user   ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_snap_user_ts    ON tab_snapshots(user_id, id DESC);
   CREATE INDEX IF NOT EXISTS idx_snap_ts         ON tab_snapshots(ts);
   CREATE INDEX IF NOT EXISTS idx_cmd_user_status ON commands(user_id, status);
+  CREATE INDEX IF NOT EXISTS idx_timings_book_ts ON bet_timings(book, id DESC);
 `);
 
 // migrazione soft: aggiunge last_seen_at se il DB è vecchio
@@ -774,7 +809,81 @@ export function compareVersions(a, b) {
   return 0;
 }
 
+// ═══════════════════════ BOOK STATS (velocità bookmaker) ═══════════════════════
+export function listBookStats() {
+  return db.prepare(`SELECT * FROM book_stats ORDER BY ordine ASC, nome ASC`).all();
+}
+export function upsertBookStat(b) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO book_stats (slug, nome, piattaforma, stato, sec_live, sec_intervallo, sec_prematch, azzerabile, note, ordine, updated_at)
+    VALUES (@slug, @nome, @piattaforma, @stato, @sec_live, @sec_intervallo, @sec_prematch, @azzerabile, @note, @ordine, @updated_at)
+    ON CONFLICT(slug) DO UPDATE SET
+      nome=@nome, piattaforma=@piattaforma, stato=@stato, sec_live=@sec_live,
+      sec_intervallo=@sec_intervallo, sec_prematch=@sec_prematch, azzerabile=@azzerabile,
+      note=@note, ordine=@ordine, updated_at=@updated_at
+  `).run({
+    slug: b.slug, nome: b.nome, piattaforma: b.piattaforma ?? null, stato: b.stato ?? null,
+    sec_live: b.sec_live ?? null, sec_intervallo: b.sec_intervallo ?? null, sec_prematch: b.sec_prematch ?? null,
+    azzerabile: b.azzerabile ?? null, note: b.note ?? null, ordine: b.ordine ?? 100, updated_at: now
+  });
+  return db.prepare(`SELECT * FROM book_stats WHERE slug = ?`).get(b.slug);
+}
+export function deleteBookStat(slug) {
+  return db.prepare(`DELETE FROM book_stats WHERE slug = ?`).run(slug).changes > 0;
+}
+
+// tempi reali raccolti dalle estensioni
+export function addBetTiming(t) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO bet_timings (user_id, book, partita, stato_partita, secondi, delay_server, esito, quota, importo, ts)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(t.user_id ?? null, t.book, t.partita ?? null, t.stato_partita ?? null,
+         t.secondi ?? null, t.delay_server ?? null, t.esito ?? null, t.quota ?? null, t.importo ?? null, now);
+}
+// medie aggregate per book+stato (per popolare la tabella coi dati reali)
+export function getTimingAverages(days = 60) {
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  return db.prepare(`
+    SELECT book, stato_partita,
+           COUNT(*) AS n, ROUND(AVG(secondi),1) AS media_sec,
+           ROUND(MIN(secondi),1) AS min_sec, ROUND(MAX(secondi),1) AS max_sec
+    FROM bet_timings
+    WHERE ts >= ? AND secondi IS NOT NULL
+    GROUP BY book, stato_partita
+    ORDER BY book, stato_partita
+  `).all(since);
+}
+export function getRecentTimings(limit = 200) {
+  return db.prepare(`SELECT * FROM bet_timings ORDER BY id DESC LIMIT ?`).all(limit);
+}
+
+// seed dei book conosciuti (solo se la tabella è vuota) — dati reali dai nostri sniff
+function seedBookStats() {
+  const count = db.prepare(`SELECT COUNT(*) AS n FROM book_stats`).get().n;
+  if (count > 0) return;
+  const seed = [
+    { slug: "goldbet-group", nome: "Goldbet · Lottomatica · Planetwin", piattaforma: "GAD/Lottomatica (Angular)", stato: "Funzionante", sec_live: 2.4, sec_intervallo: null, sec_prematch: null, azzerabile: "SI", ordine: 10, note: "insertBet+pendingBet, mock del pendingBet funziona. Multibook (ID condivisi). Rischio storno se selezione sospesa/quota mossa." },
+    { slug: "williamhill", nome: "William Hill", piattaforma: "xSport (ADM/Sogei)", stato: "Funzionante", sec_live: 12, sec_intervallo: 8.5, sec_prematch: 0.4, azzerabile: "NO", ordine: 20, note: "purchase+polling. Delay dichiarato dal server (10s live / 7s intervallo). Live-as-prematch RIFIUTATA (code -5105). Estensione auto-click DOM velocizza l'invio, non il server." },
+    { slug: "betzone", nome: "Betzone", piattaforma: "PHP/jQuery (JWT, Pusher)", stato: "Funzionante", sec_live: 13, sec_intervallo: null, sec_prematch: null, azzerabile: "PARZIALE", ordine: 30, note: "playCouponFast, coupon Q(riserva)/G(accettato). Elimina ritardi client. Riserva server non comprimibile. Live-as-prematch fallito (evento_LIVE_chiuso)." },
+    { slug: "belbet360", nome: "BelBet360", piattaforma: "PHP/jQuery (ajax.php)", stato: "In analisi", sec_live: 10, sec_intervallo: null, sec_prematch: null, azzerabile: "SI (da confermare)", ordine: 40, note: "polling checkForCouponApproval (bet_timeout_live=10). Mock costruito, NON confermato (serviva sniff con credito)." },
+    { slug: "betnewera24", nome: "BetNewEra24", piattaforma: "React (api.xcodetec.com)", stato: "In analisi", sec_live: 14, sec_intervallo: null, sec_prematch: null, azzerabile: "SI (da confermare)", ordine: 50, note: "polling /coupon/check ogni 4s. Mock forza acceptance:false+played:true. NON confermato." },
+    { slug: "fastbet", nome: "Fastbet", piattaforma: "Altenar (biahosted)", stato: "Vicolo cieco", sec_live: 22, sec_intervallo: null, sec_prematch: 0.5, azzerabile: "NO", ordine: 60, note: "placeWidget unica chiamata sincrona. status 17 WaitingForRegulator. Testate 9 varianti, tutte rifiutate/22s. Il server decide sullo stato reale (MTS Sportradar)." },
+    { slug: "netbet", nome: "NetBet", piattaforma: "xSport (ADM/Sogei)", stato: "Vicolo cieco", sec_live: 14, sec_intervallo: null, sec_prematch: null, azzerabile: "NO", ordine: 70, note: "purchase code -9996 + delay dichiarato + polling. ticketSogei null fino alla fine. Non mockabile (ticket non esiste finché ADM non finisce). Leva solo tempismo." },
+    { slug: "vincitu", nome: "Vincitù", piattaforma: "xSport (ADM/Sogei)", stato: "Vicolo cieco", sec_live: 8, sec_intervallo: null, sec_prematch: null, azzerabile: "NO", ordine: 80, note: "purchase+polling, delay dichiarato dal server. Attesa reale ADM/Sogei. 43 poll in 11s sempre -9996. Non comprimibile." },
+    { slug: "eurobet", nome: "Eurobet", piattaforma: "proprietaria (sport-sale-service)", stato: "Vicolo cieco", sec_live: 12, sec_intervallo: null, sec_prematch: null, azzerabile: "NO", ordine: 90, note: "1 chiamata bloccante (piazzamento+conferma insieme), no polling da tagliare. Delay ADM reale. Leva: sulla multipla il delay sparisce." },
+    { slug: "sportium", nome: "Sportium", piattaforma: "Playtech", stato: "Non iniziato", sec_live: null, sec_intervallo: null, sec_prematch: null, azzerabile: "?", ordine: 100, note: "Solo pagina salvata. Nessun dato reale su tempi. Prossimo candidato da analizzare." }
+  ];
+  const now = new Date().toISOString();
+  const ins = db.prepare(`INSERT OR IGNORE INTO book_stats
+    (slug, nome, piattaforma, stato, sec_live, sec_intervallo, sec_prematch, azzerabile, note, ordine, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  for (const b of seed) ins.run(b.slug, b.nome, b.piattaforma, b.stato, b.sec_live, b.sec_intervallo, b.sec_prematch, b.azzerabile, b.note, b.ordine, now);
+}
+
 // seed dell'utente di test (dopo che tutte le funzioni sono definite)
 seedTestUser();
+seedBookStats();
 
 export default db;

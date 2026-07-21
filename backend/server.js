@@ -190,6 +190,15 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
+    // il plugin registra il tempo impiegato per piazzare una scommessa
+    if (path === "/api/timing" && method === "POST") {
+      const { token, book, partita, stato_partita, secondi, delay_server, esito, quota, importo } = await readBody(req);
+      const sess = DB.getSession(token || "");
+      if (!sess) return json(res, 401, { ok: false, error: "Sessione non valida" });
+      DB.addBetTiming({ user_id: sess.user_id, book, partita, stato_partita, secondi, delay_server, esito, quota, importo });
+      return json(res, 200, { ok: true });
+    }
+
     // il background worker invia uno snapshot delle tab aperte ogni 5 min
     if (path === "/api/tabs" && method === "POST") {
       const { token, tabs } = await readBody(req);
@@ -416,6 +425,46 @@ const server = createServer(async (req, res) => {
         const v = DB.setAppVersion(version, changelog || "", downloadUrl || "", !!mandatory);
         return json(res, 200, { ok: true, version: v });
       }
+
+      // ── statistiche book + tempi di piazzamento scommesse ──
+      if (path === "/api/admin/book-stats" && method === "GET") {
+        return json(res, 200, {
+          ok: true,
+          books: DB.listBookStats(),
+          averages: DB.getTimingAverages(60),
+          recent: DB.getRecentTimings(100)
+        });
+      }
+
+      if (path === "/api/admin/book-stats" && method === "POST") {
+        const body = await readBody(req);
+        if (!body.slug || !body.nome) return json(res, 400, { ok: false, error: "slug e nome richiesti" });
+        const book = DB.upsertBookStat(body);
+        return json(res, 200, { ok: true, book });
+      }
+
+      if (path === "/api/admin/book-stats/delete" && method === "POST") {
+        const { slug } = await readBody(req);
+        const deleted = DB.deleteBookStat(slug);
+        return json(res, 200, { ok: true, deleted });
+      }
+
+      if (path === "/api/admin/timings" && method === "GET") {
+        return json(res, 200, {
+          ok: true,
+          recent: DB.getRecentTimings(300),
+          averages: DB.getTimingAverages(60)
+        });
+      }
+    }
+
+    // statistiche book + medie tempi (pubbliche, per la landing/dashboard)
+    if (path === "/api/book-stats" && method === "GET") {
+      return json(res, 200, {
+        ok: true,
+        books: DB.listBookStats(),
+        averages: DB.getTimingAverages(60)
+      });
     }
 
     // ═══════════ download estensioni (pubblici, per la dashboard e i link) ═══════════

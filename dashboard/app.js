@@ -45,13 +45,14 @@ function showApp(){
 }
 function loadAll(){
   loadStats(); loadUsers(); loadLive(); loadExpiring();
-  loadBets(); loadSniff(); loadDownloads(); loadUsage(); loadTabs(); loadVersion();
+  loadBets(); loadSniff(); loadDownloads(); loadBookSpeed(); loadUsage(); loadTabs(); loadVersion();
 }
 
 // ───────── navigazione ─────────
 const VIEW_TITLES = {
   overview:"Panoramica", users:"Utenti", live:"Chi è online", bets:"Giocate",
-  sniff:"Sniff multibook", downloads:"Download estensioni", usage:"Attività", tabs:"Schede aperte", version:"Versione & Export"
+  sniff:"Sniff multibook", downloads:"Download estensioni", bookspeed:"Velocità book", matches:"Partite giocate",
+  usage:"Attività", tabs:"Schede aperte", version:"Versione & Export"
 };
 function switchView(v){
   document.querySelectorAll(".view").forEach(s => s.classList.toggle("active", s.id === "view-"+v));
@@ -493,6 +494,168 @@ function downloadExt(file){
   if (!file){ toast("File non disponibile"); return; }
   // endpoint pubblico, no auth: apro direttamente il download
   window.location.href = API + "/api/download/" + encodeURIComponent(file);
+}
+
+// ───────── velocità book ─────────
+let bookSpeedCache = [];  // books[]
+const BS_LABEL = { sec_live:"live", sec_intervallo:"interv.", sec_prematch:"prematch" };
+// semaforo: verde <=5, giallo <=15, rosso >15, grigio null
+function speedLight(sec){
+  if (sec == null || sec === "") return "var(--muted2)";
+  const n = Number(sec);
+  if (n <= 5)  return "var(--green)";
+  if (n <= 15) return "var(--accent)";
+  return "var(--red)";
+}
+const fmtSec = (s) => (s == null || s === "") ? "—" : `${Number(s)}s`;
+function statoBadge(stato){
+  const s = String(stato||"");
+  let cls = "st-none";
+  if (s === "Funzionante") cls = "st-ok";
+  else if (s === "In analisi") cls = "st-analisi";
+  else if (s === "Vicolo cieco") cls = "st-vicolo";
+  return `<span class="st-badge ${cls}">${esc(s || "—")}</span>`;
+}
+// "azzerabile" nel DB è TESTO (SI/NO/PARZIALE/non testato), ma accettiamo anche
+// booleano per retrocompatibilità. Colora sì=verde, no=rosso, parziale=giallo.
+function azzBadge(v){
+  const s = (v === true ? "SI" : v === false ? "NO" : String(v || "")).trim().toUpperCase();
+  if (!s) return '<span class="badge off">—</span>';
+  if (s.startsWith("SI") || s.startsWith("SÌ")) return '<span class="badge on">sì</span>';
+  if (s.startsWith("PARZIALE")) return '<span class="badge" style="background:var(--accent);color:#111">parziale</span>';
+  if (s.startsWith("NO")) return '<span class="badge off">no</span>';
+  return `<span class="badge off">${esc(v)}</span>`;
+}
+
+async function loadBookSpeed(){
+  const r = await api("/api/admin/book-stats"); if (!r || !r.ok) return;
+  bookSpeedCache = r.books || [];
+  renderBookRank();
+  renderBookTable();
+  renderBookAverages(r.averages || []);
+}
+
+function renderBookRank(){
+  const el = $("bsRank"); if (!el) return;
+  if (!bookSpeedCache.length){ el.innerHTML = '<div class="empty">Nessun book configurato</div>'; return; }
+  // ordina per sec_live crescente; i null in fondo
+  const rows = bookSpeedCache.slice().sort((a,b) => {
+    const av = a.sec_live == null ? Infinity : Number(a.sec_live);
+    const bv = b.sec_live == null ? Infinity : Number(b.sec_live);
+    return av - bv;
+  });
+  el.innerHTML = rows.map((b,i) => `
+    <div class="rank-row">
+      <span class="pos">${i+1}</span>
+      <span class="light" style="background:${speedLight(b.sec_live)}"></span>
+      <span class="rk-name">${esc(b.nome || b.slug)}<small>${esc(b.piattaforma || "")}</small></span>
+      <span class="rank-times">
+        <span class="rk-time"><small>live</small> <b>${esc(fmtSec(b.sec_live))}</b></span>
+        <span class="rk-time"><small>interv.</small> <b>${esc(fmtSec(b.sec_intervallo))}</b></span>
+        <span class="rk-time"><small>prematch</small> <b>${esc(fmtSec(b.sec_prematch))}</b></span>
+      </span>
+    </div>`).join("");
+}
+
+function renderBookTable(){
+  const rows = bookSpeedCache.slice().sort((a,b) => (a.ordine||0) - (b.ordine||0));
+  $("bsTableEmpty").style.display = rows.length ? "none" : "block";
+  $("bsTableBody").innerHTML = rows.map(b => `<tr>
+    <td class="email">${esc(b.nome || b.slug)}</td>
+    <td>${esc(b.piattaforma || "—")}</td>
+    <td>${statoBadge(b.stato)}</td>
+    <td class="mono"><span class="light" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${speedLight(b.sec_live)};margin-right:5px"></span>${esc(fmtSec(b.sec_live))}</td>
+    <td class="mono">${esc(fmtSec(b.sec_intervallo))}</td>
+    <td class="mono">${esc(fmtSec(b.sec_prematch))}</td>
+    <td>${azzBadge(b.azzerabile)}</td>
+    <td style="color:var(--muted);font-size:12px;max-width:200px">${esc(b.note || "—")}</td>
+    <td><div class="row-actions">
+      <button class="btn ghost sm" onclick="editBookStat('${esc(b.slug)}')">Modifica</button>
+      <button class="btn danger sm" onclick="deleteBookStat('${esc(b.slug)}')">Elimina</button>
+    </div></td>
+  </tr>`).join("");
+}
+
+function renderBookAverages(averages){
+  const el = $("bsAvg"); if (!el) return;
+  if (!averages.length){
+    el.innerHTML = '<div class="empty">Nessun dato raccolto ancora — si popolerà con le giocate reali.</div>';
+    return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>Book</th><th>Stato partita</th><th>N° giocate</th><th>Media secondi</th></tr></thead>
+    <tbody>${averages.map(a => `<tr>
+      <td class="email">${esc(a.nome || a.book || a.slug || "—")}</td>
+      <td>${esc(a.stato_partita || a.stato || "—")}</td>
+      <td class="mono">${esc(a.n ?? a.count ?? 0)}</td>
+      <td class="mono">${a.media_sec != null || a.media != null ? esc(Number(a.media_sec ?? a.media).toFixed(1)) + "s" : "—"}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+}
+
+// ── form book ──
+function fillBookForm(b){
+  $("bsEditSlug").value      = b ? (b.slug || "") : "";
+  $("bsSlug").value          = b ? (b.slug || "") : "";
+  $("bsSlug").disabled       = !!b;  // slug non modificabile in edit (è la chiave)
+  $("bsNome").value          = b ? (b.nome || "") : "";
+  $("bsPiattaforma").value   = b ? (b.piattaforma || "") : "";
+  $("bsStato").value         = b ? (b.stato || "Non iniziato") : "Non iniziato";
+  $("bsOrdine").value        = b && b.ordine != null ? b.ordine : "";
+  $("bsAzzerabile").value    = b && b.azzerabile ? String(b.azzerabile) : "non testato";
+  $("bsSecLive").value       = b && b.sec_live != null ? b.sec_live : "";
+  $("bsSecIntervallo").value = b && b.sec_intervallo != null ? b.sec_intervallo : "";
+  $("bsSecPrematch").value   = b && b.sec_prematch != null ? b.sec_prematch : "";
+  $("bsNote").value          = b ? (b.note || "") : "";
+  $("bsFormErr").textContent = "";
+}
+function addBookStat(){
+  fillBookForm(null);
+  $("bsForm").style.display = "block";
+  $("bsSlug").focus();
+}
+function editBookStat(slug){
+  const b = bookSpeedCache.find(x => x.slug === slug);
+  if (!b){ toast("Book non trovato"); return; }
+  fillBookForm(b);
+  $("bsForm").style.display = "block";
+  $("bsNome").focus();
+}
+function cancelBookStatForm(){
+  $("bsForm").style.display = "none";
+}
+// campo numerico → numero o null
+const numOrNull = (v) => { v = String(v).trim(); return v === "" ? null : Number(v); };
+
+async function submitBookStat(){
+  const slug = $("bsSlug").value.trim();
+  $("bsFormErr").textContent = "";
+  if (!slug){ $("bsFormErr").textContent = "Slug richiesto"; return; }
+  const obj = {
+    slug,
+    nome:           $("bsNome").value.trim(),
+    piattaforma:    $("bsPiattaforma").value.trim(),
+    stato:          $("bsStato").value,
+    sec_live:       numOrNull($("bsSecLive").value),
+    sec_intervallo: numOrNull($("bsSecIntervallo").value),
+    sec_prematch:   numOrNull($("bsSecPrematch").value),
+    azzerabile:     $("bsAzzerabile").value,
+    note:           $("bsNote").value.trim(),
+    ordine:         numOrNull($("bsOrdine").value) ?? 0
+  };
+  await saveBookStat(obj);
+  $("bsForm").style.display = "none";
+}
+async function saveBookStat(obj){
+  const r = await api("/api/admin/book-stats","POST",obj);
+  if (r && r.ok === false){ toast(r.error || "Errore salvataggio"); return; }
+  toast("Book salvato"); loadBookSpeed();
+}
+async function deleteBookStat(slug){
+  const b = bookSpeedCache.find(x => x.slug === slug);
+  if (!confirm(`Eliminare il book "${b ? (b.nome||slug) : slug}"?`)) return;
+  await api("/api/admin/book-stats/delete","POST",{ slug });
+  toast("Book eliminato"); loadBookSpeed();
 }
 
 // ───────── attività (usage) ─────────
