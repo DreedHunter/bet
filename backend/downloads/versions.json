@@ -489,9 +489,18 @@
     "id": "rest-sniffer",
     "label": "REST Sniffer — Bet Flow Analyzer",
     "desc": "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book.",
-    "latest": "1.1",
-    "latestFile": "rest-sniffer-v1.1.zip",
+    "latest": "1.2",
+    "latestFile": "rest-sniffer-v1.2.zip",
     "history": [
+      {
+        "id": "rest-sniffer",
+        "label": "REST Sniffer — Bet Flow Analyzer",
+        "desc": "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book.",
+        "version": "1.2",
+        "file": "rest-sniffer-v1.2.zip",
+        "changelog": "v1.2 - Lettura body piu' robusta (fallback arrayBuffer per siti tipo Bwin/Entain che consumano la response) + riconosce Entain/Bwin (cds-api, placebet).",
+        "date": "2026-07-22T18:09:29.468Z"
+      },
       {
         "id": "rest-sniffer",
         "label": "REST Sniffer — Bet Flow Analyzer",

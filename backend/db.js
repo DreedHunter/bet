@@ -886,4 +886,20 @@ function seedBookStats() {
 seedTestUser();
 seedBookStats();
 
+// aggiunte incrementali alla tabella book (INSERT OR IGNORE: non tocca i book già
+// presenti/modificati a mano dall'utente, aggiunge solo i nuovi).
+function seedBookExtra() {
+  const now = new Date().toISOString();
+  const extra = [
+    { slug: "bwin", nome: "Bwin", piattaforma: "Entain proprietaria (cds-api)", stato: "In analisi",
+      sec_live: 4.1, sec_intervallo: null, sec_prematch: null, azzerabile: "da verificare", ordine: 25,
+      note: "Piazzamento a 2 fasi: POST placebet/place (181-247ms, torna requestId) → dopo ~4s → GET placebet/querystatus. Pattern simile a Goldbet (place+querystatus ≈ insertBet+pendingBet): SE il place accetta già, i 4s sono mockabili. Da confermare col body del place (illeggibile nei primi sniff, serve REST Sniffer v1.2)." }
+  ];
+  const ins = db.prepare(`INSERT OR IGNORE INTO book_stats
+    (slug, nome, piattaforma, stato, sec_live, sec_intervallo, sec_prematch, azzerabile, note, ordine, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  for (const b of extra) ins.run(b.slug, b.nome, b.piattaforma, b.stato, b.sec_live, b.sec_intervallo, b.sec_prematch, b.azzerabile, b.note, b.ordine, now);
+}
+seedBookExtra();
+
 export default db;
