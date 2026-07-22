@@ -489,9 +489,18 @@
     "id": "rest-sniffer",
     "label": "REST Sniffer — Bet Flow Analyzer",
     "desc": "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book.",
-    "latest": "1.2",
-    "latestFile": "rest-sniffer-v1.2.zip",
+    "latest": "1.3",
+    "latestFile": "rest-sniffer-v1.3.zip",
     "history": [
+      {
+        "id": "rest-sniffer",
+        "label": "REST Sniffer — Bet Flow Analyzer",
+        "desc": "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book.",
+        "version": "1.3",
+        "file": "rest-sniffer-v1.3.zip",
+        "changelog": "v1.3 - Fix bug 'body already used' (un solo clone, letto subito) + filtro Datadog RUM/tracking che passava perche' contiene 'stake'. Ora i body di Bwin/Entain sono leggibili.",
+        "date": "2026-07-22T18:17:34.793Z"
+      },
       {
         "id": "rest-sniffer",
         "label": "REST Sniffer — Bet Flow Analyzer",
