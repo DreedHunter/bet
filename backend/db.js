@@ -891,10 +891,17 @@ seedBookStats();
 function seedBookExtra() {
   const now = new Date().toISOString();
   const extra = [
-    { slug: "bwin", nome: "Bwin", piattaforma: "Entain proprietaria (cds-api)", stato: "In analisi",
-      sec_live: 4.1, sec_intervallo: null, sec_prematch: null, azzerabile: "da verificare", ordine: 25,
-      note: "Piazzamento a 2 fasi: POST placebet/place (181-247ms, torna requestId) → dopo ~4s → GET placebet/querystatus. Pattern simile a Goldbet (place+querystatus ≈ insertBet+pendingBet): SE il place accetta già, i 4s sono mockabili. Da confermare col body del place (illeggibile nei primi sniff, serve REST Sniffer v1.2)." }
+    { slug: "bwin", nome: "Bwin", piattaforma: "Entain proprietaria (cds-api)", stato: "Non aggirabile (veloce)",
+      sec_live: 4.0, sec_intervallo: null, sec_prematch: null, azzerabile: "NO (ma veloce)", ordine: 25,
+      note: "Piazzamento a 2 fasi: POST placebet/place (165-247ms, torna solo un requestId) → il client aspetta ~4s → GET placebet/querystatus (esito). Confermato su 3 giocate: ~4s totali. È 'pending' fino al querystatus = risk-management Entain (come xSport), NON mockabile (il place non accetta subito, torna solo requestId). MA ~4s è comunque il 2° più veloce dopo Goldbet. Payload leggibile (picks[].id, betDetails, stake): un'estensione che velocizza l'INVIO è fattibile (non azzera i 4s del server)." }
   ];
+  // aggiornamento mirato: se Bwin è già nel DB con lo stato vecchio "In analisi",
+  // aggiornalo ai dati confermati (senza toccare eventuali modifiche manuali).
+  try {
+    db.prepare(`UPDATE book_stats SET stato=?, sec_live=?, azzerabile=?, note=?, updated_at=?
+                WHERE slug='bwin' AND stato='In analisi'`)
+      .run(extra[0].stato, extra[0].sec_live, extra[0].azzerabile, extra[0].note, now);
+  } catch (e) {}
   const ins = db.prepare(`INSERT OR IGNORE INTO book_stats
     (slug, nome, piattaforma, stato, sec_live, sec_intervallo, sec_prematch, azzerabile, note, ordine, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);

@@ -41,7 +41,7 @@ con l'insertBet → il pendingBet è mockabile.
 |---|---|---|---|---|
 | **Goldbet/Lottomatica/Planetwin** | GAD/Lottomatica (Angular) | ~2,4s | ✅ FUNZIONANTE | insertBet+pendingBet, mock del pendingBet OK. Multibook (ID condivisi). |
 | **William Hill** | xSport (ADM/Sogei) | live 12s / interv. 8,5s / prematch 0,4s | ✅ auto-click DOM | betdelay non azzerabile. Estensione velocizza l'INVIO. |
-| **Bwin** | Entain proprietaria (cds-api) | ~4,1s | ⏳ in analisi | place+querystatus (come Goldbet?). Se il place accetta subito, i 4s sono mockabili — da confermare col body. |
+| **Bwin** | Entain proprietaria (cds-api) | ~4s | vicolo cieco ma veloce | place (torna solo requestId) -> ~4s -> querystatus. Pending fino al querystatus = risk Entain, NON mockabile. Ma 2o piu veloce dopo Goldbet. Payload leggibile -> estensione che velocizza l invio fattibile. |
 | **Betzone** | PHP/jQuery (JWT, Pusher) | ~13s | ✅ parziale (client) | elimina ritardi client, riserva server non comprimibile. |
 | **BelBet360** | PHP/jQuery (ajax.php) | ~10s | ⏳ in analisi | mock checkForCouponApproval, non confermato (serviva credito). |
 | **BetNewEra24** | React (api.xcodetec.com) | ~14s | ⏳ in analisi | mock /coupon/check, non confermato. |
