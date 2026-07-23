@@ -543,9 +543,18 @@
     "id": "bwin",
     "label": "Bwin Fast Bet",
     "desc": "Bwin: click su quota o hotkey Casa/Ospite → aggiunge al carrello, scrive l'importo e Piazza scommessa (auto-click DOM, Entain).",
-    "latest": "1.1",
-    "latestFile": "bwin-v1.1.zip",
+    "latest": "1.2",
+    "latestFile": "bwin-v1.2.zip",
     "history": [
+      {
+        "id": "bwin",
+        "label": "Bwin Fast Bet",
+        "desc": "Bwin: click su quota o hotkey Casa/Ospite → aggiunge al carrello, scrive l'importo e Piazza scommessa (auto-click DOM, Entain).",
+        "version": "1.2",
+        "file": "bwin-v1.2.zip",
+        "changelog": "v1.2: Gol 1 Tempo copre 1-5 gol (1a..5a squadra a segnare, forma A tab + forma B titolo), blocca giocata se tab 1T non si attiva (no periodo sbagliato), label mostra quale gol",
+        "date": "2026-07-23T15:41:26.779Z"
+      },
       {
         "id": "bwin",
         "label": "Bwin Fast Bet",
