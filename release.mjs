@@ -49,7 +49,9 @@ const REGISTRY = [
   { id: "betradar-sync", dir: "checktimes/goldbet_betradar_sync", label: "Goldbet ↔ Betradar Sync",
     desc: "Strumento di timing: confronta i tempi Goldbet col feed Betradar (WebSocket) e mostra il ritardo per partita." },
   { id: "rest-sniffer", dir: "rest_sniffer", label: "REST Sniffer — Bet Flow Analyzer",
-    desc: "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book." }
+    desc: "STRUMENTO DI ANALISI: cattura tutte le chiamate REST di qualsiasi sito (header, body, response, timing, cURL). È l'attrezzo per fare gli sniff dei nuovi book." },
+  { id: "bwin", dir: "bwin_fast_bet", label: "Bwin Fast Bet",
+    desc: "Bwin: click su quota o hotkey Casa/Ospite → aggiunge al carrello, scrive l'importo e Piazza scommessa (auto-click DOM, Entain)." }
 ];
 
 function readManifestVersion(dir) {
