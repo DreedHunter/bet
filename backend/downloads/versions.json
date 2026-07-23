@@ -552,8 +552,8 @@
         "desc": "Bwin: click su quota o hotkey Casa/Ospite → aggiunge al carrello, scrive l'importo e Piazza scommessa (auto-click DOM, Entain).",
         "version": "1.1",
         "file": "bwin-v1.1.zip",
-        "changelog": "v1.1: hotkey Gol Casa/Ospite 1 Tempo (mercato 1a squadra a segnare, click tab 1 tempo), cronometro da 0 al click (stop al querystatus), pause ridotte",
-        "date": "2026-07-23T14:44:46.838Z"
+        "changelog": "v1.1: crono si ferma sul messaggio UI 'scommessa accettata' (MutationObserver), querystatus+timeout come fallback; 1 Tempo via tab interna",
+        "date": "2026-07-23T14:48:44.941Z"
       },
       {
         "id": "bwin",
